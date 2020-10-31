@@ -29,12 +29,21 @@
  */
 
 
-#import <ResearchKit/ORKVerticalContainerView.h>
+@import UIKit;
+#import "ORKStepContainerView_Private.h"
 
+NS_ASSUME_NONNULL_BEGIN
 
-@interface ORKQuestionStepView : ORKVerticalContainerView
+@class ORKQuestionStep;
+@class ORKQuestionStepCustomView;
+
+@interface ORKQuestionStepView : ORKStepContainerView
 
 @property (nonatomic, strong, nullable) ORKQuestionStep *questionStep;
 @property (nonatomic, strong, nullable) ORKQuestionStepCustomView *questionCustomView;
 
+- (void)setCustomHeaderTitle:(nullable NSString *)text;
+
 @end
+
+NS_ASSUME_NONNULL_END

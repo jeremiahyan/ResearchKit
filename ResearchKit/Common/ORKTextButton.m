@@ -90,7 +90,6 @@
 }
 
 - (CGSize)intrinsicContentSize {
-    // Fix for <rdar://problem/19528969>
     UILabel *label = nil;
     
     for (UIView *view in self.subviews) {
@@ -112,6 +111,14 @@
                           labelSize.height+verticalPadding);
     }
     return [super intrinsicContentSize];
+}
+
+- (UIAccessibilityTraits)accessibilityTraits {
+    // prevent VoiceOver from speaking "dimmed" when transitioning between pages
+    if (self.isInTransition) {
+        return [super accessibilityTraits] & ~UIAccessibilityTraitNotEnabled;
+    }
+    return [super accessibilityTraits];
 }
 
 @end

@@ -29,9 +29,8 @@
  */
 
 
-#import <UIKit/UIKit.h>
-#import <AVFoundation/AVFoundation.h>
-#import "ORKImageCaptureStep.h"
+@import UIKit;
+@import AVFoundation;
 
 
 NS_ASSUME_NONNULL_BEGIN
@@ -39,11 +38,12 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol ORKImageCaptureViewDelegate <NSObject>
 
 - (void)capturePressed:(void (^ _Nullable)(BOOL captureSuccess))handler;
-- (void)retakePressed:(void (^ _Nullable)())handler;
+- (void)retakePressed:(void (^ _Nullable)(void))handler;
 - (void)videoOrientationDidChange:(AVCaptureVideoOrientation)videoOrientation;
 
 @end
 
+@class ORKImageCaptureStep;
 
 @interface ORKImageCaptureView : UIView
 
@@ -52,6 +52,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, weak, nullable) AVCaptureSession *session;
 @property (nonatomic, strong, nullable) UIBarButtonItem *continueButtonItem;
 @property (nonatomic, strong, nullable) UIBarButtonItem *skipButtonItem;
+@property (nonatomic, strong, nullable) UIBarButtonItem *cancelButtonItem;
 @property (nonatomic, strong, nullable) UIImage *capturedImage;
 @property (nonatomic, strong, nullable) NSError *error;
 

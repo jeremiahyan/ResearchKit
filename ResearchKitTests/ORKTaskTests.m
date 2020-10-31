@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2015, Ricardo Sánchez-Sáez.
+ Copyright (c) 2015-2016, Ricardo Sánchez-Sáez.
  
  Redistribution and use in source and binary forms, with or without modification,
  are permitted provided that the following conditions are met:
@@ -29,16 +29,25 @@
  */
 
 
-#import <XCTest/XCTest.h>
-#import <ResearchKit/ResearchKit.h>
-#import "ORKHelpers.h"
-#import "ORKResult_Private.h"
-#import "ORKStepNavigationRule_Private.h"
-#import "ORKStepNavigationRule_Internal.h"
+@import XCTest;
+@import ResearchKit.Private;
 
 
 @interface ORKTaskTests : XCTestCase
 
+@end
+
+@interface MethodObject : NSObject
+@property (nonatomic) NSString *selectorName;
+@property (nonatomic) NSArray *arguments;
+@end
+
+@interface TestTaskViewControllerDelegate : NSObject <ORKTaskViewControllerDelegate>
+@property (nonatomic) NSMutableArray <MethodObject *> *methodCalled;
+@end
+
+@interface MockTaskViewController : ORKTaskViewController
+@property (nonatomic) NSMutableArray <MethodObject *> *methodCalled;
 @end
 
 
@@ -91,14 +100,14 @@ ORKDefineStringKey(NavigableOrderedTaskIdentifier);
     answerFormat = [ORKAnswerFormat choiceAnswerFormatWithStyle:ORKChoiceAnswerStyleSingleChoice
                                                     textChoices:textChoices];
     stepIdentifier = SymptomStepIdentifier;
-    step = [ORKQuestionStep questionStepWithIdentifier:stepIdentifier title:@"What is your symptom?" answer:answerFormat];
+    step = [ORKQuestionStep questionStepWithIdentifier:stepIdentifier title:@"Survey" question:@"What is your symptom?" answer:answerFormat];
     step.optional = NO;
     [stepIdentifiers addObject:stepIdentifier];
     [steps addObject:step];
     
     answerFormat = [ORKAnswerFormat booleanAnswerFormat];
     stepIdentifier = SeverityStepIdentifier;
-    step = [ORKQuestionStep questionStepWithIdentifier:stepIdentifier title:@"Does your symptom interferes with your daily life?" answer:answerFormat];
+    step = [ORKQuestionStep questionStepWithIdentifier:stepIdentifier title:@"Survey" question:@"Does your symptom interferes with your daily life?" answer:answerFormat];
     step.optional = NO;
     [stepIdentifiers addObject:stepIdentifier];
     [steps addObject:step];
@@ -251,14 +260,18 @@ ORKDefineStringKey(NavigableOrderedTaskIdentifier);
 
 typedef NS_OPTIONS(NSUInteger, TestsTaskResultOptions) {
     TestsTaskResultOptionSymptomHeadache    = 1 << 0,
-    TestsTaskResultOptionSymptomDizziness   = 2 << 0,
-    TestsTaskResultOptionSymptomNausea      = 3 << 0,
+    TestsTaskResultOptionSymptomDizziness   = 1 << 1,
+    TestsTaskResultOptionSymptomNausea      = 1 << 2,
     
-    TestsTaskResultOptionSeverityYes        = 1 << 2,
-    TestsTaskResultOptionSeverityNo         = 2 << 2
+    TestsTaskResultOptionSeverityYes        = 1 << 3,
+    TestsTaskResultOptionSeverityNo         = 1 << 4
 };
 
 - (ORKTaskResult *)getResultTreeWithTaskIdentifier:(NSString *)taskIdentifier resultOptions:(TestsTaskResultOptions)resultOptions {
+    if ( ((resultOptions & TestsTaskResultOptionSymptomDizziness) || (resultOptions & TestsTaskResultOptionSymptomNausea)) && ((resultOptions & TestsTaskResultOptionSeverityYes) || (resultOptions & TestsTaskResultOptionSeverityNo)) ) {
+        @throw [NSException exceptionWithName:NSGenericException reason:@"You can only add a severity result for the headache symptom" userInfo:nil];
+    }
+    
     NSMutableArray *stepResults = [NSMutableArray new];
     
     ORKQuestionResult *questionResult = nil;
@@ -280,6 +293,11 @@ typedef NS_OPTIONS(NSUInteger, TestsTaskResultOptions) {
         
         stepResult = [[ORKStepResult alloc] initWithStepIdentifier:stepIdentifier results:@[questionResult]];
         [stepResults addObject:stepResult];
+
+        if (resultOptions & (TestsTaskResultOptionSymptomDizziness | TestsTaskResultOptionSymptomNausea)) {
+            stepResult = [[ORKStepResult alloc] initWithStepIdentifier:OtherSymptomStepIdentifier results:nil];
+            [stepResults addObject:stepResult];
+        }
     }
     
     if (resultOptions & (TestsTaskResultOptionSeverityYes | TestsTaskResultOptionSeverityNo)) {
@@ -295,8 +313,20 @@ typedef NS_OPTIONS(NSUInteger, TestsTaskResultOptions) {
         
         stepResult = [[ORKStepResult alloc] initWithStepIdentifier:stepIdentifier results:@[questionResult]];
         [stepResults addObject:stepResult];
+        
+        
+        if (resultOptions & TestsTaskResultOptionSeverityYes) {
+            stepResult = [[ORKStepResult alloc] initWithStepIdentifier:SevereHeadacheStepIdentifier results:nil];
+            [stepResults addObject:stepResult];
+        } else if (resultOptions & TestsTaskResultOptionSeverityNo) {
+            stepResult = [[ORKStepResult alloc] initWithStepIdentifier:LightHeadacheStepIdentifier results:nil];
+            [stepResults addObject:stepResult];
+        }
     }
     
+    stepResult = [[ORKStepResult alloc] initWithStepIdentifier:EndStepIdentifier results:nil];
+    [stepResults addObject:stepResult];
+
     ORKTaskResult *taskResult = [[ORKTaskResult alloc] initWithTaskIdentifier:taskIdentifier
                                                                   taskRunUUID:[NSUUID UUID]
                                                               outputDirectory:[NSURL fileURLWithPath:NSTemporaryDirectory()]];
@@ -319,13 +349,24 @@ typedef NS_OPTIONS(NSUInteger, TestsTaskResultOptions) {
     
     NSUInteger expectedTotalProgress = _orderedTaskSteps.count;
     
+    for (ORKStep *step in _orderedTaskSteps) {
+        ORKTaskProgress currentProgress = [_orderedTask progressOfCurrentStep:step withResult:mockTaskResult];
+        if (!currentProgress.shouldBePresented) {
+            expectedTotalProgress -= 1;
+        }
+    }
+    
     for (NSUInteger stepIndex = 0; stepIndex < _orderedTaskStepIdentifiers.count; stepIndex++) {
         ORKStep *currentStep = _orderedTaskSteps[stepIndex];
         XCTAssertEqualObjects(currentStep, [_orderedTask stepWithIdentifier:_orderedTaskStepIdentifiers[stepIndex]]);
         
-        const NSUInteger expectedCurrentProgress = stepIndex;
-        ORKTaskProgress currentProgress = [_orderedTask progressOfCurrentStep:currentStep withResult:mockTaskResult];
-        XCTAssertTrue(currentProgress.total == expectedTotalProgress && currentProgress.current == expectedCurrentProgress);
+         ORKTaskProgress currentProgress = [_orderedTask progressOfCurrentStep:currentStep withResult:mockTaskResult];
+        
+        if (currentProgress.shouldBePresented) {
+            const NSUInteger expectedCurrentProgress = stepIndex;
+            XCTAssertEqual(currentProgress.total, expectedTotalProgress);
+            XCTAssertEqual(currentProgress.current, expectedCurrentProgress);
+        }
         
         NSString *expectedPreviousStep = (stepIndex != 0) ? _orderedTaskSteps[stepIndex - 1] : nil;
         NSString *expectedNextStep = (stepIndex < _orderedTaskStepIdentifiers.count - 1) ? _orderedTaskSteps[stepIndex + 1] : nil;
@@ -340,9 +381,8 @@ typedef NS_OPTIONS(NSUInteger, TestsTaskResultOptions) {
     ORKStep *step = [[ORKInstructionStep alloc] initWithIdentifier:BlankStepIdentifier];
     [steps addObject:step];
     
-    ORKOrderedTask *orderedTask = [[ORKOrderedTask alloc] initWithIdentifier:OrderedTaskIdentifier
-                                                                       steps:steps];
-    XCTAssertThrows([orderedTask validateParameters]);
+    XCTAssertThrows([[ORKOrderedTask alloc] initWithIdentifier:OrderedTaskIdentifier
+                                                         steps:steps]);
 }
 
 #define getIndividualNavigableOrderedTaskSteps() \
@@ -381,11 +421,16 @@ BOOL (^testStepBeforeStep)(ORKNavigableOrderedTask *, ORKTaskResult *, ORKStep *
     
     ORKDirectStepNavigationRule *mockNavigationRule = [[ORKDirectStepNavigationRule alloc] initWithDestinationStepIdentifier:MockDestinationStepIdentifier];
     [_navigableOrderedTask setNavigationRule:mockNavigationRule forTriggerStepIdentifier:MockTriggerStepIdentifier];
-    
+
     XCTAssertEqualObjects([_navigableOrderedTask navigationRuleForTriggerStepIdentifier:MockTriggerStepIdentifier], [mockNavigationRule copy]);
+
+    ORKPredicateSkipStepNavigationRule *mockSkipNavigationRule = [[ORKPredicateSkipStepNavigationRule alloc] initWithResultPredicate:[NSPredicate predicateWithFormat:@"1 == 1"]];
+    [_navigableOrderedTask setSkipNavigationRule:mockSkipNavigationRule forStepIdentifier:MockTriggerStepIdentifier];
     
-    [_navigableOrderedTask removeNavigationRuleForTriggerStepIdentifier:MockTriggerStepIdentifier];
-    XCTAssertNil([_navigableOrderedTask navigationRuleForTriggerStepIdentifier:MockTriggerStepIdentifier]);
+    XCTAssertEqualObjects([_navigableOrderedTask skipNavigationRuleForStepIdentifier:MockTriggerStepIdentifier], [mockSkipNavigationRule copy]);
+    
+    [_navigableOrderedTask removeSkipNavigationRuleForStepIdentifier:MockTriggerStepIdentifier];
+    XCTAssertNil([_navigableOrderedTask skipNavigationRuleForStepIdentifier:MockTriggerStepIdentifier]);
 }
 
 - (void)testNavigableOrderedTaskEmpty {
@@ -397,31 +442,23 @@ BOOL (^testStepBeforeStep)(ORKNavigableOrderedTask *, ORKTaskResult *, ORKStep *
     ORKTaskResult *taskResult = [self getResultTreeWithTaskIdentifier:NavigableOrderedTaskIdentifier resultOptions:0];
     
     // Test forward navigation
+    XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, nil, symptomStep));
     XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, symptomStep, otherSymptomStep));
     XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, otherSymptomStep, endStep));
     XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, endStep, nil));
     
-    // Test backward navigation
-    XCTAssertTrue(testStepBeforeStep(_navigableOrderedTask, taskResult, endStep, otherSymptomStep));
-    XCTAssertTrue(testStepBeforeStep(_navigableOrderedTask, taskResult, otherSymptomStep, symptomStep));
+    // Test absent backward navigation
+    XCTAssertTrue(testStepBeforeStep(_navigableOrderedTask, taskResult, endStep, nil));
+    XCTAssertTrue(testStepBeforeStep(_navigableOrderedTask, taskResult, otherSymptomStep, nil));
     XCTAssertTrue(testStepBeforeStep(_navigableOrderedTask, taskResult, symptomStep, nil));
     
-    // Test unreachable node (will reset navigation stack)
+    // Test unreachable nodes
     XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, severityStep, otherSymptomStep));
-    XCTAssertTrue(testStepBeforeStep(_navigableOrderedTask, taskResult, otherSymptomStep, severityStep));
-    XCTAssertTrue(testStepBeforeStep(_navigableOrderedTask, taskResult, severityStep, nil));
-    
-    // Test unreachable node (will reset navigation stack)
     XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, blankStep, severeHeadacheStep));
     XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, severeHeadacheStep, endStep));
-    XCTAssertTrue(testStepBeforeStep(_navigableOrderedTask, taskResult, endStep, severeHeadacheStep));
-    XCTAssertTrue(testStepBeforeStep(_navigableOrderedTask, taskResult, severeHeadacheStep, blankStep));
-    XCTAssertTrue(testStepBeforeStep(_navigableOrderedTask, taskResult, blankStep, nil));
-    
-    // Test unreachable node (will reset navigation stack)
+    XCTAssertTrue(testStepBeforeStep(_navigableOrderedTask, taskResult, severeHeadacheStep, nil));
     XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, lightHeadacheStep, endStep));
-    XCTAssertTrue(testStepBeforeStep(_navigableOrderedTask, taskResult, endStep, lightHeadacheStep));
-    XCTAssertTrue(testStepBeforeStep(_navigableOrderedTask, taskResult, lightHeadacheStep, nil));
+
 }
 
 - (void)testNavigableOrderedTaskHeadache {
@@ -430,17 +467,18 @@ BOOL (^testStepBeforeStep)(ORKNavigableOrderedTask *, ORKTaskResult *, ORKStep *
     //
     // Only headache symptom question step answered
     //
-    ORKTaskResult *taskResult = [self getResultTreeWithTaskIdentifier:NavigableOrderedTaskIdentifier resultOptions:TestsTaskResultOptionSymptomHeadache];
+    ORKTaskResult *taskResult = [self getResultTreeWithTaskIdentifier:NavigableOrderedTaskIdentifier resultOptions:TestsTaskResultOptionSymptomHeadache | TestsTaskResultOptionSeverityYes];
     
     // Test forward navigation
+    XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, nil, symptomStep));
     XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, symptomStep, severityStep));
-    XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, severityStep, otherSymptomStep));
-    XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, otherSymptomStep, endStep));
+    XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, severityStep, severeHeadacheStep));
+    XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, severeHeadacheStep, endStep));
     XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, endStep, nil));
     
     // Test backward navigation
-    XCTAssertTrue(testStepBeforeStep(_navigableOrderedTask, taskResult, endStep, otherSymptomStep));
-    XCTAssertTrue(testStepBeforeStep(_navigableOrderedTask, taskResult, otherSymptomStep, severityStep));
+    XCTAssertTrue(testStepBeforeStep(_navigableOrderedTask, taskResult, endStep, severeHeadacheStep));
+    XCTAssertTrue(testStepBeforeStep(_navigableOrderedTask, taskResult, severeHeadacheStep, severityStep));
     XCTAssertTrue(testStepBeforeStep(_navigableOrderedTask, taskResult, severityStep, symptomStep));
     XCTAssertTrue(testStepBeforeStep(_navigableOrderedTask, taskResult, symptomStep, nil));
 }
@@ -454,6 +492,7 @@ BOOL (^testStepBeforeStep)(ORKNavigableOrderedTask *, ORKTaskResult *, ORKStep *
     ORKTaskResult *taskResult = [self getResultTreeWithTaskIdentifier:NavigableOrderedTaskIdentifier resultOptions:TestsTaskResultOptionSymptomDizziness];
     
     // Test forward navigation
+    XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, nil, symptomStep));
     XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, symptomStep, otherSymptomStep));
     XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, otherSymptomStep, endStep));
     XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, endStep, nil));
@@ -473,6 +512,7 @@ BOOL (^testStepBeforeStep)(ORKNavigableOrderedTask *, ORKTaskResult *, ORKStep *
     ORKTaskResult *taskResult = [self getResultTreeWithTaskIdentifier:NavigableOrderedTaskIdentifier resultOptions:TestsTaskResultOptionSymptomHeadache | TestsTaskResultOptionSeverityYes];
     
     // Test forward navigation
+    XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, nil, symptomStep));
     XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, symptomStep, severityStep));
     XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, severityStep, severeHeadacheStep));
     XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, severeHeadacheStep, endStep));
@@ -494,6 +534,7 @@ BOOL (^testStepBeforeStep)(ORKNavigableOrderedTask *, ORKTaskResult *, ORKStep *
     ORKTaskResult *taskResult = [self getResultTreeWithTaskIdentifier:NavigableOrderedTaskIdentifier resultOptions:TestsTaskResultOptionSymptomHeadache | TestsTaskResultOptionSeverityNo];
     
     // Test forward navigation
+    XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, nil, symptomStep));
     XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, symptomStep, severityStep));
     XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, severityStep, lightHeadacheStep));
     XCTAssertTrue(testStepAfterStep(_navigableOrderedTask, taskResult, lightHeadacheStep, endStep));
@@ -505,6 +546,53 @@ BOOL (^testStepBeforeStep)(ORKNavigableOrderedTask *, ORKTaskResult *, ORKStep *
     XCTAssertTrue(testStepBeforeStep(_navigableOrderedTask, taskResult, severityStep, symptomStep));
     XCTAssertTrue(testStepBeforeStep(_navigableOrderedTask, taskResult, symptomStep, nil));
 }
+
+- (void)testNavigableOrderedTaskSkip {
+    ORKNavigableOrderedTask *skipTask = [_navigableOrderedTask copy];
+
+    getIndividualNavigableOrderedTaskSteps();
+
+    //
+    // Light headache sequence
+    //
+    ORKTaskResult *taskResult = [self getResultTreeWithTaskIdentifier:NavigableOrderedTaskIdentifier resultOptions:TestsTaskResultOptionSymptomHeadache | TestsTaskResultOptionSeverityNo];
+
+    // User chose headache at the symptom step
+    ORKResultSelector *resultSelector = [[ORKResultSelector alloc] initWithResultIdentifier:SymptomStepIdentifier];
+    NSPredicate *predicateHeadache = [ORKResultPredicate predicateForChoiceQuestionResultWithResultSelector:resultSelector
+                                                                                        expectedAnswerValue:HeadacheChoiceValue];
+    ORKPredicateSkipStepNavigationRule *skipRule = [[ORKPredicateSkipStepNavigationRule alloc] initWithResultPredicate:predicateHeadache];
+    
+    // Skip endStep
+    [skipTask setSkipNavigationRule:skipRule forStepIdentifier:EndStepIdentifier];
+    
+    // Test forward navigation
+    XCTAssertTrue(testStepAfterStep(skipTask, taskResult, nil, symptomStep));
+    XCTAssertTrue(testStepAfterStep(skipTask, taskResult, symptomStep, severityStep));
+    XCTAssertTrue(testStepAfterStep(skipTask, taskResult, severityStep, lightHeadacheStep));
+    XCTAssertTrue(testStepAfterStep(skipTask, taskResult, lightHeadacheStep, nil));
+    
+    
+    // Skip lightHeadacheStep
+    [skipTask removeSkipNavigationRuleForStepIdentifier:EndStepIdentifier];
+    [skipTask setSkipNavigationRule:skipRule forStepIdentifier:LightHeadacheStepIdentifier];
+    
+    XCTAssertTrue(testStepAfterStep(skipTask, taskResult, nil, symptomStep));
+    XCTAssertTrue(testStepAfterStep(skipTask, taskResult, symptomStep, severityStep));
+    XCTAssertTrue(testStepAfterStep(skipTask, taskResult, severityStep, endStep));
+    XCTAssertTrue(testStepAfterStep(skipTask, taskResult, endStep, nil));
+
+    
+    // Skip lightHeadache and endStep
+    [skipTask setSkipNavigationRule:skipRule forStepIdentifier:EndStepIdentifier];
+    
+    XCTAssertTrue(testStepAfterStep(skipTask, taskResult, nil, symptomStep));
+    XCTAssertTrue(testStepAfterStep(skipTask, taskResult, symptomStep, severityStep));
+    XCTAssertTrue(testStepAfterStep(skipTask, taskResult, severityStep, nil));
+}
+
+ORKDefineStringKey(SignConsentStepIdentifier);
+ORKDefineStringKey(SignatureIdentifier);
 
 ORKDefineStringKey(ScaleStepIdentifier);
 ORKDefineStringKey(ContinuousScaleStepIdentifier);
@@ -553,8 +641,8 @@ ORKDefineStringKey(DefaultDestinationStepIdentifier);
 
 static const NSInteger AdditionalIntegerValue = 42;
 
-static NSDate *(^Date)() = ^NSDate *{ return [NSDate dateWithTimeIntervalSince1970:60*60*24]; };
-static NSDateComponents *(^DateComponents)() = ^NSDateComponents *{
+static NSDate *(^Date)(void) = ^NSDate *{ return [NSDate dateWithTimeIntervalSince1970:60*60*24]; };
+static NSDateComponents *(^DateComponents)(void) = ^NSDateComponents *{
     NSDateComponents *dateComponents = [NSDateComponents new];
     dateComponents.hour = 6;
     dateComponents.minute = 6;
@@ -573,6 +661,12 @@ static ORKStepResult *(^getStepResult)(NSString *, Class, ORKQuestionType, id) =
     ORKQuestionResult *questionResult = getQuestionResult(stepIdentifier, questionResultClass, questionType, answer);
     ORKStepResult *stepResult = [[ORKStepResult alloc] initWithStepIdentifier:stepIdentifier results:@[questionResult]];
     return stepResult;
+};
+
+static ORKStepResult *(^getConsentStepResult)(NSString *, NSString *, BOOL) = ^ORKStepResult *(NSString *stepIdentifier, NSString *signatureIdentifier, BOOL consented) {
+    ORKConsentSignatureResult *consentSignatureResult = [[ORKConsentSignatureResult alloc] initWithIdentifier:signatureIdentifier];
+    consentSignatureResult.consented = consented;
+    return [[ORKStepResult alloc] initWithStepIdentifier:stepIdentifier results:@[consentSignatureResult]];
 };
 
 - (ORKTaskResult *)getGeneralTaskResultTree {
@@ -600,6 +694,19 @@ static ORKStepResult *(^getStepResult)(NSString *, Class, ORKQuestionType, id) =
     
     // Nil result (simulate skipped step)
     [stepResults addObject:getStepResult(NilTextStepIdentifier, [ORKTextQuestionResult class], ORKQuestionTypeText, nil)];
+    
+    ORKTaskResult *taskResult = [[ORKTaskResult alloc] initWithTaskIdentifier:OrderedTaskIdentifier
+                                                                  taskRunUUID:[NSUUID UUID]
+                                                              outputDirectory:[NSURL fileURLWithPath:NSTemporaryDirectory()]];
+    taskResult.results = stepResults;
+    
+    return taskResult;
+}
+
+- (ORKTaskResult *)getTaskResultTreeWithConsent:(BOOL)consented {
+    NSMutableArray *stepResults = [NSMutableArray new];
+    
+    [stepResults addObject:getConsentStepResult(SignConsentStepIdentifier, SignatureIdentifier, consented)];
     
     ORKTaskResult *taskResult = [[ORKTaskResult alloc] initWithTaskIdentifier:OrderedTaskIdentifier
                                                                   taskRunUUID:[NSUUID UUID]
@@ -845,6 +952,163 @@ static ORKStepResult *(^getStepResult)(NSString *, Class, ORKQuestionType, id) =
         additionalTaskResult = [self getSmallFormTaskResultTreeWithIsAdditionalTask:YES];
         predicateRule.additionalTaskResults = @[ additionalTaskResult ];
         XCTAssertEqualObjects([predicateRule identifierForDestinationStepWithTaskResult:taskResult], MatchedDestinationStepIdentifier);
+    }
+}
+
+- (void)testPredicateSkipStepNavigationRule {
+    NSPredicate *predicate = nil;
+    NSPredicate *predicateA = nil;
+    NSPredicate *predicateB = nil;
+    ORKPredicateSkipStepNavigationRule *predicateRule = nil;
+    ORKTaskResult *taskResult = nil;
+    ORKTaskResult *additionalTaskResult = nil;
+    
+    ORKResultSelector *resultSelector = nil;
+    
+    {
+        // Test predicate step navigation rule initializers
+        resultSelector = [[ORKResultSelector alloc] initWithResultIdentifier:TextStepIdentifier];
+        predicate = [ORKResultPredicate predicateForTextQuestionResultWithResultSelector:resultSelector
+                                                                          expectedString:TextValue];
+        predicateRule = [[ORKPredicateSkipStepNavigationRule alloc] initWithResultPredicate:predicate];
+        XCTAssertEqualObjects(predicateRule.resultPredicate, predicate);
+    }
+    
+    {
+        // Predicate matching, no additional task results, matching
+        taskResult = [ORKTaskResult new];
+        taskResult.identifier = OrderedTaskIdentifier;
+        
+        resultSelector = [[ORKResultSelector alloc] initWithResultIdentifier:TextStepIdentifier];
+        predicate = [ORKResultPredicate predicateForTextQuestionResultWithResultSelector:resultSelector
+                                                                          expectedString:TextValue];
+        predicateRule = [[ORKPredicateSkipStepNavigationRule alloc] initWithResultPredicate:predicate];
+        
+        XCTAssertFalse([predicateRule stepShouldSkipWithTaskResult:taskResult]);
+        
+        taskResult = [self getSmallTaskResultTreeWithIsAdditionalTask:NO];
+        XCTAssertTrue([predicateRule stepShouldSkipWithTaskResult:taskResult]);
+    }
+    
+    {
+        // Predicate matching, no additional task results, non matching
+        resultSelector = [[ORKResultSelector alloc] initWithResultIdentifier:TextStepIdentifier];
+        predicate = [ORKResultPredicate predicateForTextQuestionResultWithResultSelector:resultSelector
+                                                                          expectedString:OtherTextValue];
+        predicateRule = [[ORKPredicateSkipStepNavigationRule alloc] initWithResultPredicate:predicate];
+        taskResult = [self getSmallTaskResultTreeWithIsAdditionalTask:NO];
+        XCTAssertFalse([predicateRule stepShouldSkipWithTaskResult:taskResult]);
+    }
+
+    {
+        NSPredicate *currentPredicate = nil;
+        NSPredicate *additionalPredicate = nil;
+        
+        // Predicate matching, additional task results
+        resultSelector = [[ORKResultSelector alloc] initWithResultIdentifier:TextStepIdentifier];
+        currentPredicate = [ORKResultPredicate predicateForTextQuestionResultWithResultSelector:resultSelector
+                                                                                 expectedString:TextValue];
+        
+        resultSelector = [[ORKResultSelector alloc] initWithTaskIdentifier:AdditionalTaskIdentifier
+                                                          resultIdentifier:AdditionalTextStepIdentifier];
+        additionalPredicate = [ORKResultPredicate predicateForTextQuestionResultWithResultSelector:resultSelector
+                                                                                    expectedString:AdditionalTextValue];
+        
+        predicate = [NSCompoundPredicate andPredicateWithSubpredicates:@[currentPredicate, additionalPredicate]];
+        predicateRule = [[ORKPredicateSkipStepNavigationRule alloc] initWithResultPredicate:predicate];
+        
+        taskResult = [ORKTaskResult new];
+        taskResult.identifier = OrderedTaskIdentifier;
+        XCTAssertFalse([predicateRule stepShouldSkipWithTaskResult:taskResult]);
+        
+        taskResult = [self getSmallTaskResultTreeWithIsAdditionalTask:NO];
+        XCTAssertFalse([predicateRule stepShouldSkipWithTaskResult:taskResult]);
+        
+        additionalTaskResult = [self getSmallTaskResultTreeWithIsAdditionalTask:YES];
+        predicateRule.additionalTaskResults = @[ additionalTaskResult ];
+        XCTAssertTrue([predicateRule stepShouldSkipWithTaskResult:taskResult]);
+    }
+
+    {
+        // Test duplicate task identifiers check
+        predicateRule.additionalTaskResults = @[ taskResult ];
+        XCTAssertThrows([predicateRule stepShouldSkipWithTaskResult:taskResult]);
+        
+        // Test duplicate question result identifiers check
+        XCTAssertThrows(predicateRule.additionalTaskResults = @[ [self getSmallTaskResultTreeWithDuplicateStepIdentifiers] ]);
+    }
+    
+    {
+        // Form predicate matching, no additional task results, matching
+        resultSelector = [[ORKResultSelector alloc] initWithStepIdentifier:FormStepIdentifier
+                                                          resultIdentifier:TextFormItemIdentifier];
+        predicateA = [ORKResultPredicate predicateForTextQuestionResultWithResultSelector:resultSelector
+                                                                           expectedString:TextValue];
+        
+        resultSelector = [[ORKResultSelector alloc] initWithStepIdentifier:FormStepIdentifier
+                                                          resultIdentifier:NumericFormItemIdentifier];
+        predicateB = [ORKResultPredicate predicateForNumericQuestionResultWithResultSelector:resultSelector
+                                                                              expectedAnswer:IntegerValue];
+        
+        predicate = [NSCompoundPredicate andPredicateWithSubpredicates:@[predicateA, predicateB]];
+        predicateRule = [[ORKPredicateSkipStepNavigationRule alloc] initWithResultPredicate:predicate];
+        
+        taskResult = [self getSmallFormTaskResultTreeWithIsAdditionalTask:NO];
+        XCTAssertTrue([predicateRule stepShouldSkipWithTaskResult:taskResult]);
+    }
+
+    {
+        // Form predicate matching, no additional task results, non matching
+        resultSelector = [[ORKResultSelector alloc] initWithStepIdentifier:FormStepIdentifier
+                                                          resultIdentifier:TextFormItemIdentifier];
+        predicate = [ORKResultPredicate predicateForTextQuestionResultWithResultSelector:resultSelector
+                                                                          expectedString:OtherTextValue];
+        predicateRule = [[ORKPredicateSkipStepNavigationRule alloc] initWithResultPredicate:predicate];
+        
+        taskResult = [self getSmallFormTaskResultTreeWithIsAdditionalTask:NO];
+        XCTAssertFalse([predicateRule stepShouldSkipWithTaskResult:taskResult]);
+    }
+    
+    {
+        NSPredicate *currentPredicate = nil;
+        NSPredicate *additionalPredicate = nil;
+        
+        // Form predicate matching, additional task results
+        resultSelector = [[ORKResultSelector alloc] initWithStepIdentifier:FormStepIdentifier
+                                                          resultIdentifier:TextFormItemIdentifier];
+        predicateA = [ORKResultPredicate predicateForTextQuestionResultWithResultSelector:resultSelector
+                                                                           expectedString:TextValue];
+        
+        resultSelector = [[ORKResultSelector alloc] initWithStepIdentifier:FormStepIdentifier
+                                                          resultIdentifier:NumericFormItemIdentifier];
+        predicateB = [ORKResultPredicate predicateForNumericQuestionResultWithResultSelector:resultSelector
+                                                                              expectedAnswer:IntegerValue];
+        
+        currentPredicate = [NSCompoundPredicate andPredicateWithSubpredicates:@[predicateA, predicateB]];
+        
+        resultSelector = [[ORKResultSelector alloc] initWithTaskIdentifier:AdditionalTaskIdentifier
+                                                            stepIdentifier:AdditionalFormStepIdentifier
+                                                          resultIdentifier:AdditionalTextFormItemIdentifier];
+        predicateA = [ORKResultPredicate predicateForTextQuestionResultWithResultSelector:resultSelector
+                                                                           expectedString:AdditionalTextValue];
+        
+        resultSelector = [[ORKResultSelector alloc] initWithTaskIdentifier:AdditionalTaskIdentifier
+                                                            stepIdentifier:AdditionalFormStepIdentifier
+                                                          resultIdentifier:AdditionalNumericFormItemIdentifier];
+        predicateB = [ORKResultPredicate predicateForNumericQuestionResultWithResultSelector:resultSelector
+                                                                              expectedAnswer:AdditionalIntegerValue];
+        
+        additionalPredicate = [NSCompoundPredicate andPredicateWithSubpredicates:@[predicateA, predicateB]];
+        
+        predicate = [NSCompoundPredicate andPredicateWithSubpredicates:@[currentPredicate, additionalPredicate]];
+        predicateRule = [[ORKPredicateSkipStepNavigationRule alloc] initWithResultPredicate:predicate];
+        
+        taskResult = [self getSmallFormTaskResultTreeWithIsAdditionalTask:NO];
+        XCTAssertFalse([predicateRule stepShouldSkipWithTaskResult:taskResult]);
+        
+        additionalTaskResult = [self getSmallFormTaskResultTreeWithIsAdditionalTask:YES];
+        predicateRule.additionalTaskResults = @[ additionalTaskResult ];
+        XCTAssertTrue([predicateRule stepShouldSkipWithTaskResult:taskResult]);
     }
 }
 
@@ -1099,6 +1363,28 @@ static ORKStepResult *(^getStepResult)(NSString *, Class, ORKQuestionType, id) =
     XCTAssertFalse([[ORKResultPredicate predicateForNilQuestionResultWithResultSelector:resultSelector] evaluateWithObject:taskResults substitutionVariables:substitutionVariables]);
 }
 
+- (void)testConsentPredicate {
+    ORKResultSelector *resultSelector = [[ORKResultSelector alloc] initWithTaskIdentifier:OrderedTaskIdentifier
+                                                                           stepIdentifier:SignConsentStepIdentifier
+                                                                         resultIdentifier:SignatureIdentifier];
+    {
+        ORKTaskResult *consentedTaskResult = [self getTaskResultTreeWithConsent:YES];
+        XCTAssertTrue([[ORKResultPredicate predicateForConsentWithResultSelector:resultSelector
+                                                                      didConsent:YES] evaluateWithObject:@[consentedTaskResult] substitutionVariables:nil]);
+        XCTAssertFalse([[ORKResultPredicate predicateForConsentWithResultSelector:resultSelector
+                                                                       didConsent:NO] evaluateWithObject:@[consentedTaskResult] substitutionVariables:nil]);
+    }
+    
+    {
+        ORKTaskResult *didNotConsentTaskResult = [self getTaskResultTreeWithConsent:NO];
+        
+        XCTAssertTrue([[ORKResultPredicate predicateForConsentWithResultSelector:resultSelector
+                                                                      didConsent:NO] evaluateWithObject:@[didNotConsentTaskResult] substitutionVariables:nil]);
+        XCTAssertFalse([[ORKResultPredicate predicateForConsentWithResultSelector:resultSelector
+                                                                       didConsent:YES] evaluateWithObject:@[didNotConsentTaskResult] substitutionVariables:nil]);
+    }
+}
+
 - (void)testResultPredicates {
     ORKTaskResult *taskResult = [self getGeneralTaskResultTree];
     NSArray *taskResults = @[ taskResult ];
@@ -1114,6 +1400,399 @@ static ORKStepResult *(^getStepResult)(NSString *, Class, ORKQuestionType, id) =
     [self testResultPredicatesWithTaskIdentifier:nil
                            substitutionVariables:@{ORKResultPredicateTaskIdentifierVariableName: OrderedTaskIdentifier}
                                      taskResults:taskResults];
+}
+
+- (void)testStepViewControllerWillDisappear {
+    TestTaskViewControllerDelegate *delegate = [[TestTaskViewControllerDelegate alloc] init];
+    ORKOrderedTask *task = [ORKOrderedTask twoFingerTappingIntervalTaskWithIdentifier:@"test" intendedUseDescription:nil duration:30 handOptions:0 options:0];
+    ORKTaskViewController *taskViewController = [[MockTaskViewController alloc] initWithTask:task taskRunUUID:nil];
+    taskViewController.delegate = delegate;
+    ORKInstructionStepViewController *stepViewController = [[ORKInstructionStepViewController alloc] initWithStep:task.steps.firstObject];
+    
+    //-- call method under test
+    [taskViewController stepViewController:stepViewController didFinishWithNavigationDirection:ORKStepViewControllerNavigationDirectionForward];
+    
+    // Check that the expected methods were called
+    XCTAssertEqual(delegate.methodCalled.count, 1);
+    XCTAssertEqualObjects(delegate.methodCalled.firstObject.selectorName, @"taskViewController:stepViewControllerWillDisappear:navigationDirection:");
+    NSArray *expectedArgs = @[taskViewController, stepViewController, @(ORKStepViewControllerNavigationDirectionForward)];
+    XCTAssertEqualObjects(delegate.methodCalled.firstObject.arguments, expectedArgs);
+    
+}
+
+- (void)testIndexOfStep {
+    ORKOrderedTask *task = [ORKOrderedTask twoFingerTappingIntervalTaskWithIdentifier:@"tapping" intendedUseDescription:nil duration:30 handOptions:0 options:0];
+    
+    // get the first step
+    ORKStep *step0 = [task.steps firstObject];
+    XCTAssertNotNil(step0);
+    XCTAssertEqual([task indexOfStep:step0], 0);
+    
+    // get the second step
+    ORKStep *step1 = [task stepWithIdentifier:ORKInstruction1StepIdentifier];
+    XCTAssertNotNil(step1);
+    XCTAssertEqual([task indexOfStep:step1], 1);
+    
+    // get the last step
+    ORKStep *stepLast = [task.steps lastObject];
+    XCTAssertNotNil(stepLast);
+    XCTAssertEqual([task indexOfStep:stepLast], task.steps.count - 1);
+    
+    // Look for not found
+    ORKStep *stepNF = [[ORKStep alloc] initWithIdentifier:@"foo"];
+    XCTAssertEqual([task indexOfStep:stepNF], NSNotFound);
+    
+}
+
+- (void)testAudioTask_WithSoundCheck {
+    ORKNavigableOrderedTask *task = [ORKOrderedTask audioTaskWithIdentifier:@"audio" intendedUseDescription:nil speechInstruction:nil shortSpeechInstruction:nil duration:20 recordingSettings:nil checkAudioLevel:YES options:0];
+    
+    NSArray *expectedStepIdentifiers = @[ORKInstruction0StepIdentifier,
+                                         ORKInstruction1StepIdentifier,
+                                         ORKCountdownStepIdentifier,
+                                         ORKAudioTooLoudStepIdentifier,
+                                         ORKAudioStepIdentifier,
+                                         ORKConclusionStepIdentifier];
+    NSArray *stepIdentifiers = [task.steps valueForKey:@"identifier"];
+    XCTAssertEqual(stepIdentifiers.count, expectedStepIdentifiers.count);
+    XCTAssertEqualObjects(stepIdentifiers, expectedStepIdentifiers);
+    
+    XCTAssertNotNil([task navigationRuleForTriggerStepIdentifier:ORKCountdownStepIdentifier]);
+    XCTAssertNotNil([task navigationRuleForTriggerStepIdentifier:ORKAudioTooLoudStepIdentifier]);
+}
+
+- (void)testAudioTask_NoSoundCheck {
+    
+    ORKNavigableOrderedTask *task = [ORKOrderedTask audioTaskWithIdentifier:@"audio" intendedUseDescription:nil speechInstruction:nil shortSpeechInstruction:nil duration:20 recordingSettings:nil checkAudioLevel:NO options:0];
+    
+    NSArray *expectedStepIdentifiers = @[ORKInstruction0StepIdentifier,
+                                         ORKInstruction1StepIdentifier,
+                                         ORKCountdownStepIdentifier,
+                                         ORKAudioStepIdentifier,
+                                         ORKConclusionStepIdentifier];
+    NSArray *stepIdentifiers = [task.steps valueForKey:@"identifier"];
+    XCTAssertEqual(stepIdentifiers.count, expectedStepIdentifiers.count);
+    XCTAssertEqualObjects(stepIdentifiers, expectedStepIdentifiers);
+    XCTAssertEqual(task.stepNavigationRules.count, 0);
+}
+
+- (void)testWalkBackAndForthTask_30SecondDuration {
+    
+    // Create the task
+    ORKOrderedTask *task = [ORKOrderedTask walkBackAndForthTaskWithIdentifier:@"walking" intendedUseDescription:nil walkDuration:30 restDuration:30 options:0];
+    
+    // Check that the steps match the expected - If these change, it will affect the results and
+    // could adversely impact existing studies that are expecting this step order.
+    NSArray *expectedStepIdentifiers = @[ORKInstruction0StepIdentifier,
+                                         ORKInstruction1StepIdentifier,
+                                         ORKCountdownStepIdentifier,
+                                         ORKShortWalkOutboundStepIdentifier,
+                                         ORKShortWalkRestStepIdentifier,
+                                         ORKConclusionStepIdentifier];
+    XCTAssertEqual(task.steps.count, expectedStepIdentifiers.count);
+    NSArray *stepIdentifiers = [task.steps valueForKey:@"identifier"];
+    XCTAssertEqualObjects(stepIdentifiers, expectedStepIdentifiers);
+    
+    // Check that the active steps include speaking the halfway point
+    ORKActiveStep *walkingStep = (ORKActiveStep *)[task stepWithIdentifier:ORKShortWalkOutboundStepIdentifier];
+    XCTAssertTrue(walkingStep.shouldSpeakRemainingTimeAtHalfway);
+    ORKActiveStep *restStep = (ORKActiveStep *)[task stepWithIdentifier:ORKShortWalkRestStepIdentifier];
+    XCTAssertTrue(restStep.shouldSpeakRemainingTimeAtHalfway);
+    
+}
+
+- (void)testWalkBackAndForthTask_15SecondDuration_NoRest {
+    
+    // Create the task
+    ORKOrderedTask *task = [ORKOrderedTask walkBackAndForthTaskWithIdentifier:@"walking" intendedUseDescription:nil walkDuration:15 restDuration:0 options:0];
+    
+    // Check that the steps match the expected - If these change, it will affect the results and
+    // could adversely impact existing studies that are expecting this step order.
+    NSArray *expectedStepIdentifiers = @[ORKInstruction0StepIdentifier,
+                                         ORKInstruction1StepIdentifier,
+                                         ORKCountdownStepIdentifier,
+                                         ORKShortWalkOutboundStepIdentifier,
+                                         ORKConclusionStepIdentifier];
+    XCTAssertEqual(task.steps.count, expectedStepIdentifiers.count);
+    NSArray *stepIdentifiers = [task.steps valueForKey:@"identifier"];
+    XCTAssertEqualObjects(stepIdentifiers, expectedStepIdentifiers);
+    
+    // Check that the active steps include speaking the halfway point
+    ORKActiveStep *walkingStep = (ORKActiveStep *)[task stepWithIdentifier:ORKShortWalkOutboundStepIdentifier];
+    XCTAssertFalse(walkingStep.shouldSpeakRemainingTimeAtHalfway);
+    
+}
+
+#pragma mark - two-finger tapping with both hands
+
+- (void)testTwoFingerTappingIntervalTaskWithIdentifier_TapHandOptionUndefined {
+    
+    ORKOrderedTask *task = [ORKOrderedTask twoFingerTappingIntervalTaskWithIdentifier:@"test"
+                                                               intendedUseDescription:nil
+                                                                             duration:10
+                                                                          handOptions:0
+                                                                              options:0];
+    NSArray *expectedStepIdentifiers = @[ORKInstruction0StepIdentifier,
+                                              ORKInstruction1StepIdentifier,
+                                              ORKTappingStepIdentifier,
+                                              ORKConclusionStepIdentifier];
+    NSArray *stepIdentifiers = [task.steps valueForKey:@"identifier"];
+    XCTAssertEqual(stepIdentifiers.count, expectedStepIdentifiers.count);
+    XCTAssertEqualObjects(stepIdentifiers, expectedStepIdentifiers);
+    
+    ORKStep *tappingStep = [task stepWithIdentifier:ORKTappingStepIdentifier];
+    XCTAssertFalse(tappingStep.optional);
+
+}
+
+- (void)testTwoFingerTappingIntervalTaskWithIdentifier_TapHandOptionLeft {
+    
+    ORKOrderedTask *task = [ORKOrderedTask twoFingerTappingIntervalTaskWithIdentifier:@"test"
+                                                               intendedUseDescription:nil
+                                                                             duration:10
+                                                                          handOptions:ORKPredefinedTaskHandOptionLeft
+                                                                              options:0];
+    // Check assumption around how many steps
+    XCTAssertEqual(task.steps.count, 4);
+    
+    // Check that none of the language or identifiers contain the word "right"
+    for (ORKStep *step in task.steps) {
+        XCTAssertFalse([step.identifier.lowercaseString hasSuffix:@"right"]);
+        XCTAssertFalse([step.title.lowercaseString containsString:@"right"]);
+        XCTAssertFalse([step.text.lowercaseString containsString:@"right"]);
+    }
+    
+    NSArray * (^filteredSteps)(NSString*, NSString*) = ^(NSString *part1, NSString *part2) {
+        NSString *keyValue = [NSString stringWithFormat:@"%@.%@", part1, part2];
+        NSPredicate *predicate = [NSPredicate predicateWithFormat:@"%K == %@", NSStringFromSelector(@selector(identifier)), keyValue];
+        return [task.steps filteredArrayUsingPredicate:predicate];
+    };
+    
+    // Look for instruction step
+    NSArray *instructions = filteredSteps(@"instruction1", @"left");
+    XCTAssertEqual(instructions.count, 1);
+    ORKStep *instructionStep = [instructions firstObject];
+    XCTAssertEqualObjects(instructionStep.title, @"Left Hand");
+    XCTAssertEqualObjects(instructionStep.text, @"Put your device on a flat surface. Use two fingers on your left hand to alternately tap the buttons on the screen. Tap one finger, then the other. Try to time your taps to be as even as possible. Keep tapping for 10 seconds.");
+    
+    // Look for the activity step
+    NSArray *tappings = filteredSteps(@"tapping", @"left");
+    XCTAssertEqual(tappings.count, 1);
+    ORKStep *tappingStep = [tappings firstObject];
+    XCTAssertEqualObjects(tappingStep.text, @"Tap the buttons using your LEFT hand.");
+    XCTAssertFalse(tappingStep.optional);
+    
+}
+
+- (void)testTwoFingerTappingIntervalTaskWithIdentifier_TapHandOptionRight {
+    
+    ORKOrderedTask *task = [ORKOrderedTask twoFingerTappingIntervalTaskWithIdentifier:@"test"
+                                                               intendedUseDescription:nil
+                                                                             duration:10
+                                                                          handOptions:ORKPredefinedTaskHandOptionRight
+                                                                              options:0];
+    // Check assumption around how many steps
+    XCTAssertEqual(task.steps.count, 4);
+    
+    // Check that none of the language or identifiers contain the word "right"
+    for (ORKStep *step in task.steps) {
+        XCTAssertFalse([step.identifier.lowercaseString hasSuffix:@"left"]);
+        XCTAssertFalse([step.title.lowercaseString containsString:@"left"]);
+        XCTAssertFalse([step.text.lowercaseString containsString:@"left"]);
+    }
+    
+    NSArray * (^filteredSteps)(NSString*, NSString*) = ^(NSString *part1, NSString *part2) {
+        NSString *keyValue = [NSString stringWithFormat:@"%@.%@", part1, part2];
+        NSPredicate *predicate = [NSPredicate predicateWithFormat:@"%K == %@", NSStringFromSelector(@selector(identifier)), keyValue];
+        return [task.steps filteredArrayUsingPredicate:predicate];
+    };
+    
+    // Look for instruction step
+    NSArray *instructions = filteredSteps(@"instruction1", @"right");
+    XCTAssertEqual(instructions.count, 1);
+    ORKStep *instructionStep = [instructions firstObject];
+    XCTAssertEqualObjects(instructionStep.title, @"Right Hand");
+    XCTAssertEqualObjects(instructionStep.text, @"Put your device on a flat surface. Use two fingers on your right hand to alternately tap the buttons on the screen. Tap one finger, then the other. Try to time your taps to be as even as possible. Keep tapping for 10 seconds.");
+    
+    // Look for the activity step
+    NSArray *tappings = filteredSteps(@"tapping", @"right");
+    XCTAssertEqual(tappings.count, 1);
+    ORKStep *tappingStep = [tappings firstObject];
+    XCTAssertEqualObjects(tappingStep.text, @"Tap the buttons using your RIGHT hand.");
+    XCTAssertFalse(tappingStep.optional);
+    
+}
+
+- (void)testTwoFingerTappingIntervalTaskWithIdentifier_TapHandOptionBoth {
+    NSUInteger leftCount = 0;
+    NSUInteger rightCount = 0;
+    NSUInteger totalCount = 100;
+    NSUInteger threshold = 30;
+    
+    for (int ii = 0; ii < totalCount; ii++) {
+        ORKOrderedTask *task = [ORKOrderedTask twoFingerTappingIntervalTaskWithIdentifier:@"test"
+                                                                   intendedUseDescription:nil
+                                                                                 duration:10
+                                                                              handOptions:ORKPredefinedTaskHandOptionBoth
+                                                                                  options:0];
+        ORKStep * (^filteredSteps)(NSString*, NSString*) = ^(NSString *part1, NSString *part2) {
+            NSString *keyValue = [NSString stringWithFormat:@"%@.%@", part1, part2];
+            NSPredicate *predicate = [NSPredicate predicateWithFormat:@"%K == %@", NSStringFromSelector(@selector(identifier)), keyValue];
+            return [[task.steps filteredArrayUsingPredicate:predicate] firstObject];
+        };
+        
+        // Look for instruction steps
+        ORKStep *rightInstructionStep = filteredSteps(@"instruction1", @"right");
+        XCTAssertNotNil(rightInstructionStep);
+        ORKStep *leftInstructionStep = filteredSteps(@"instruction1", @"left");
+        XCTAssertNotNil(leftInstructionStep);
+        
+        // Depending upon the seed (clock time) this will be either the right or left hand
+        // Without using OCMock, cannot easily verify that both will display.
+        BOOL isRightFirst = [task.steps indexOfObject:rightInstructionStep] < [task.steps indexOfObject:leftInstructionStep];
+        if (isRightFirst) {
+            rightCount++;
+        } else {
+            leftCount++;
+        }
+        
+        if ((isRightFirst && rightCount == 1) || (!isRightFirst && leftCount == 1)) {
+            
+            // Look for instruction steps
+            XCTAssertEqualObjects(rightInstructionStep.title, @"Right Hand");
+            XCTAssertEqualObjects(leftInstructionStep.title, @"Left Hand");
+            
+            // Depending upon the seed (clock time) this will be either the right or left hand
+            // Without using OCMock, cannot easily verify that both will display.
+            if (isRightFirst) {
+                XCTAssertEqualObjects(rightInstructionStep.text, @"Put your device on a flat surface. Use two fingers on your right hand to alternately tap the buttons on the screen. Tap one finger, then the other. Try to time your taps to be as even as possible. Keep tapping for 10 seconds.");
+                XCTAssertEqualObjects(leftInstructionStep.text, @"Put your device on a flat surface. Now repeat the same test using your left hand. Tap one finger, then the other. Try to time your taps to be as even as possible. Keep tapping for 10 seconds.");
+            } else {
+                XCTAssertEqualObjects(leftInstructionStep.text, @"Put your device on a flat surface. Use two fingers on your left hand to alternately tap the buttons on the screen. Tap one finger, then the other. Try to time your taps to be as even as possible. Keep tapping for 10 seconds.");
+                XCTAssertEqualObjects(rightInstructionStep.text, @"Put your device on a flat surface. Now repeat the same test using your right hand. Tap one finger, then the other. Try to time your taps to be as even as possible. Keep tapping for 10 seconds.");
+            }
+            
+            // Look for tapping steps
+            ORKStep *rightTapStep = filteredSteps(@"tapping", @"right");
+            XCTAssertNotNil(rightTapStep);
+            XCTAssertEqualObjects(rightTapStep.text, @"Tap the buttons using your RIGHT hand.");
+            XCTAssertTrue(rightTapStep.optional);
+            
+            ORKStep *leftTapStep = filteredSteps(@"tapping", @"left");
+            XCTAssertNotNil(leftTapStep);
+            XCTAssertEqualObjects(leftTapStep.text, @"Tap the buttons using your LEFT hand.");
+            XCTAssertTrue(leftTapStep.optional);
+        }
+    }
+    
+    XCTAssertGreaterThan(leftCount, threshold);
+    XCTAssertGreaterThan(rightCount, threshold);
+}
+
+
+#pragma mark - Test Tremor Task navigation
+
+- (void)testKeyValueStepModifier {
+    
+    // Setup the task
+    ORKStep *boolStep = [ORKQuestionStep  questionStepWithIdentifier:@"question"
+                                                               title:@"Question"
+                                                            question:@"Yes or No"
+                                                              answer:[ORKAnswerFormat booleanAnswerFormat]];
+    
+    ORKStep *nextStep = [[ORKInstructionStep alloc] initWithIdentifier:@"nextStep"];
+    nextStep.title = @"Yes";
+
+    ORKNavigableOrderedTask *task = [[ORKNavigableOrderedTask alloc] initWithIdentifier:NavigableOrderedTaskIdentifier
+                                                                                  steps:@[boolStep, nextStep]];
+    
+    ORKResultSelector *resultSelector = [ORKResultSelector selectorWithStepIdentifier:@"question"
+                                                                     resultIdentifier:@"question"];
+    NSPredicate *predicate = [ORKResultPredicate predicateForBooleanQuestionResultWithResultSelector:resultSelector
+                                                                                      expectedAnswer:NO];
+    ORKStepModifier *stepModifier = [[ORKKeyValueStepModifier alloc] initWithResultPredicate:predicate
+                                                                               keyValueMap:@{ @"title" : @"No" }];
+    
+    [task setStepModifier:stepModifier forStepIdentifier:@"nextStep"];
+    
+    // -- Check the title if the answer is YES
+    ORKBooleanQuestionResult *result = [[ORKBooleanQuestionResult alloc] initWithIdentifier:@"question"];
+    result.booleanAnswer = @(YES);
+    ORKStepResult *stepResult = [[ORKStepResult alloc] initWithStepIdentifier:@"question" results:@[result]];
+    ORKTaskResult *taskResult = [[ORKTaskResult alloc] initWithIdentifier:NavigableOrderedTaskIdentifier];
+    taskResult.results = @[stepResult];
+    
+    // For the case where the answer is YES, then the title should be "Yes" (unmodified)
+    ORKStep *yesStep = [task stepAfterStep:boolStep withResult:taskResult];
+    XCTAssertEqualObjects(yesStep.title, @"Yes");
+    
+    // -- Check the title if the answer is NO
+    result.booleanAnswer = @(NO);
+    stepResult = [[ORKStepResult alloc] initWithStepIdentifier:@"question" results:@[result]];
+    taskResult.results = @[stepResult];
+    
+    // For the case where the answer is NO, then the title should be modified to be "No"
+    ORKStep *noStep = [task stepAfterStep:boolStep withResult:taskResult];
+    XCTAssertEqualObjects(noStep.title, @"No");
+}
+
+
+@end
+
+
+@implementation MethodObject
+@end
+
+@implementation TestTaskViewControllerDelegate
+
+- (instancetype)init
+{
+    self = [super init];
+    if (self) {
+        _methodCalled = [NSMutableArray new];
+    }
+    return self;
+}
+
+- (void)taskViewController:(ORKTaskViewController *)taskViewController didFinishWithReason:(ORKTaskViewControllerFinishReason)reason error:(NSError *)error {
+    
+    // Add results of method call
+    MethodObject *obj = [[MethodObject alloc] init];
+    obj.selectorName = NSStringFromSelector(@selector(taskViewController:didFinishWithReason:error:));
+    obj.arguments = @[taskViewController ?: [NSNull null],
+                      @(reason),
+                      error ?: [NSNull null]];
+    [self.methodCalled addObject:obj];
+}
+
+- (void)taskViewController:(ORKTaskViewController *)taskViewController stepViewControllerWillDisappear:(ORKStepViewController *)stepViewController navigationDirection:(ORKStepViewControllerNavigationDirection)direction {
+    // Add results of method call
+    MethodObject *obj = [[MethodObject alloc] init];
+    obj.selectorName = NSStringFromSelector(@selector(taskViewController:stepViewControllerWillDisappear:navigationDirection:));
+    obj.arguments = @[taskViewController ?: [NSNull null],
+                      stepViewController ?: [NSNull null],
+                      @(direction)];
+    [self.methodCalled addObject:obj];
+}
+
+@end
+
+@implementation MockTaskViewController
+
+- (void)flipToNextPageFrom:(ORKStepViewController *)fromController {
+    // Add results of method call
+    MethodObject *obj = [[MethodObject alloc] init];
+    obj.selectorName = NSStringFromSelector(@selector(flipToNextPageFrom:));
+    obj.arguments = @[fromController ?: [NSNull null]];
+    [self.methodCalled addObject:obj];
+}
+
+- (void)flipToPreviousPageFrom:(ORKStepViewController *)fromController {
+    // Add results of method call
+    MethodObject *obj = [[MethodObject alloc] init];
+    obj.selectorName = NSStringFromSelector(@selector(flipToPreviousPageFrom:));
+    obj.arguments = @[fromController ?: [NSNull null]];
+    [self.methodCalled addObject:obj];
 }
 
 @end

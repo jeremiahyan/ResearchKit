@@ -30,19 +30,24 @@
 
 
 #import "ORKFitnessStepViewController.h"
-#import "ORKHelpers.h"
-#import "ORKStep_Private.h"
-#import "ORKStepViewController_Internal.h"
-#import "ORKActiveStepViewController_Internal.h"
+
+#import "ORKActiveStepTimer.h"
+#import "ORKActiveStepView.h"
 #import "ORKFitnessContentView.h"
 #import "ORKVerticalContainerView.h"
-#import "ORKFitnessStep.h"
+
+#import "ORKStepViewController_Internal.h"
 #import "ORKHealthQuantityTypeRecorder.h"
 #import "ORKPedometerRecorder.h"
-#import "ORKActiveStepView.h"
+
+#import "ORKActiveStepViewController_Internal.h"
+#import "ORKFitnessStep.h"
+#import "ORKStep_Private.h"
+
+#import "ORKHelpers_Internal.h"
 
 
-@interface ORKFitnessStepViewController () <ORKHealthQuantityTypeRecorderDelegate,ORKPedometerRecorderDelegate> {
+@interface ORKFitnessStepViewController () <ORKHealthQuantityTypeRecorderDelegate, ORKPedometerRecorderDelegate> {
     NSInteger _intendedSteps;
     ORKFitnessContentView *_contentView;
     NSNumberFormatter *_hrFormatter;
@@ -68,7 +73,7 @@
 - (void)stepDidChange {
     [super stepDidChange];
     _hrFormatter = [[NSNumberFormatter alloc] init];
-    _hrFormatter.numberStyle = kCFNumberFormatterNoStyle;
+    _hrFormatter.numberStyle = NSNumberFormatterNoStyle;
     _contentView.timeLeft = self.fitnessStep.stepDuration;
     
 }
@@ -77,10 +82,8 @@
     [super viewDidLoad];
     // Do any additional setup after loading the view.
     _contentView = [ORKFitnessContentView new];
-    _contentView.image = self.fitnessStep.image;
     _contentView.timeLeft = self.fitnessStep.stepDuration;
     self.activeStepView.activeCustomView = _contentView;
-    self.activeStepView.stepViewFillsAvailableSpace = YES;
 }
 
 - (void)updateHeartRateWithQuantity:(HKQuantitySample *)quantity unit:(HKUnit *)unit {

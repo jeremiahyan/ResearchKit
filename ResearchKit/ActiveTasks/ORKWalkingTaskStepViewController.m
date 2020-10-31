@@ -30,25 +30,28 @@
 
 
 #import "ORKWalkingTaskStepViewController.h"
-#import "ORKHelpers.h"
-#import "ORKStep_Private.h"
-#import "ORKStepViewController_Internal.h"
-#import "ORKActiveStepViewController_Internal.h"
-#import "ORKCustomStepView_Internal.h"
-#import "ORKActiveStepViewController_Internal.h"
-#import "ORKVerticalContainerView_Internal.h"
-#import "ORKSkin.h"
-#import "ORKWalkingTaskStep.h"
-#import "ORKPedometerRecorder.h"
+
 #import "ORKActiveStepView.h"
+#import "ORKCustomStepView_Internal.h"
 #import "ORKProgressView.h"
+#import "ORKVerticalContainerView_Internal.h"
+
+#import "ORKActiveStepViewController_Internal.h"
+#import "ORKStepViewController_Internal.h"
+#import "ORKPedometerRecorder.h"
+
+#import "ORKStep_Private.h"
+#import "ORKWalkingTaskStep.h"
+
+#import "ORKHelpers_Internal.h"
+#import "ORKSkin.h"
 
 
 @interface ORKWalkingContentView : ORKActiveStepCustomView {
     NSLayoutConstraint *_topConstraint;
 }
 
-@property  (nonatomic, strong, readonly) ORKProgressView *progressView;
+@property (nonatomic, strong, readonly) ORKProgressView *progressView;
 
 @end
 
@@ -86,6 +89,7 @@
 
 - (void)setUpConstraints {
     NSMutableArray *constraints = [NSMutableArray new];
+    
     NSDictionary *views = NSDictionaryOfVariableBindings(_progressView);
     [constraints addObjectsFromArray:
      [NSLayoutConstraint constraintsWithVisualFormat:@"V:[_progressView]-(>=0)-|"
@@ -139,6 +143,7 @@
 }
 
 - (ORKWalkingTaskStep *)walkingTaskStep {
+    NSAssert(self.step == nil || [self.step isKindOfClass:[ORKWalkingTaskStep class]], @"Expected step subclass of ORKWalkingTaskStep");
     return (ORKWalkingTaskStep *)self.step;
 }
 
@@ -158,7 +163,7 @@
 
 - (void)pedometerRecorderDidUpdate:(ORKPedometerRecorder *)pedometerRecorder {
     NSInteger numberOfSteps = [pedometerRecorder totalNumberOfSteps];
-    ORK_Log_Debug(@"Steps: %lld", (long long)numberOfSteps);
+    ORK_Log_Debug("Steps: %lld", (long long)numberOfSteps);
     if (_intendedSteps > 0 && numberOfSteps >= _intendedSteps) {
         [self finish];
     }

@@ -29,8 +29,7 @@
  */
 
 
-#import <Foundation/Foundation.h>
-#import <ResearchKit/ResearchKit.h>
+@import UIKit;
 
 
 NS_ASSUME_NONNULL_BEGIN
@@ -42,15 +41,17 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 
+@class ORKAnswerFormat;
+
 @protocol ORKPicker <NSObject>
 
-- (instancetype) initWithAnswerFormat:(ORKAnswerFormat *)answerFormat answer:(nullable id)answer pickerDelegate:(id<ORKPickerDelegate>)delegate;
+- (instancetype)initWithAnswerFormat:(ORKAnswerFormat *)answerFormat answer:(nullable id)answer pickerDelegate:(id<ORKPickerDelegate>)delegate;
 
 @property (nonatomic, weak, nullable) id<ORKPickerDelegate> pickerDelegate;
 
 @property (nonatomic, strong, nullable) id answer;
 
-@property (nonatomic, readonly) NSString *selectedLabelText;
+@property (nonatomic, readonly, nullable) NSString *selectedLabelText;
 
 - (void)pickerWillAppear;
 

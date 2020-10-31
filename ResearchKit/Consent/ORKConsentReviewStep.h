@@ -29,7 +29,8 @@
  */
 
 
-#import <ResearchKit/ResearchKit.h>
+@import Foundation;
+#import <ResearchKit/ORKStep.h>
 
 
 NS_ASSUME_NONNULL_BEGIN
@@ -94,6 +95,11 @@ ORK_CLASS_AVAILABLE
  the consent document.
  */
 @property (nonatomic, strong, readonly, nullable) ORKConsentSignature *signature;
+
+/**
+ When set to YES, the consent document must be scrolled to the bottom to enable the `Agree` button.
+ */
+@property (nonatomic) BOOL requiresScrollToBottom;
 
 /**
  A user-visible description of the reason for agreeing to consent in a localized string.

@@ -29,8 +29,11 @@
  */
 
 
-#import "ORKLabel.h"
+#import <ResearchKit/ORKDefines.h>
+#import <ResearchKit/ORKLabel.h>
 
+
+NS_ASSUME_NONNULL_BEGIN
 
 /**
  Display tapping count in tapping interval active task
@@ -39,3 +42,5 @@ ORK_CLASS_AVAILABLE
 @interface ORKTapCountLabel : ORKLabel
 
 @end
+
+NS_ASSUME_NONNULL_END

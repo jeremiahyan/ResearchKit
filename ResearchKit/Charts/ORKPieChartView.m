@@ -2,6 +2,7 @@
  Copyright (c) 2015, Apple Inc. All rights reserved.
  Copyright (c) 2015, James Cox.
  Copyright (c) 2015, Ricardo Sánchez-Sáez.
+ Copyright (c) 2018, Brian Ganninger.
 
  Redistribution and use in source and binary forms, with or without modification,
  are permitted provided that the following conditions are met:
@@ -33,16 +34,98 @@
 
 #import "ORKPieChartView.h"
 #import "ORKPieChartView_Internal.h"
-#import "ORKPieChartPieView.h"
+
 #import "ORKPieChartLegendView.h"
+#import "ORKPieChartPieView.h"
 #import "ORKPieChartTitleTextView.h"
+
+#import "ORKHelpers_Internal.h"
 #import "ORKSkin.h"
-#import "ORKDefines_Private.h"
-#import "ORKHelpers.h"
+
+
+#if TARGET_INTERFACE_BUILDER
+
+@interface ORKIBPieChartViewDataSourceSegment : NSObject
+
+@property (nonatomic, assign) CGFloat value;
+
+@property (nonatomic, copy, nullable) NSString *title;
+
+@property (nonatomic, strong, nullable) UIColor *color;
+
+@end
+
+
+@interface ORKIBPieChartViewDataSource : NSObject <ORKPieChartViewDataSource>
+
++ (instancetype)sharedInstance;
+
+@property (nonatomic, strong, nullable) NSArray <ORKIBPieChartViewDataSourceSegment *> *segments;
+
+@end
+
+
+@implementation ORKIBPieChartViewDataSourceSegment
+
+@end
+
+
+@implementation ORKIBPieChartViewDataSource
+
++ (instancetype)sharedInstance {
+    static ORKIBPieChartViewDataSource *sharedInstance;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        sharedInstance = [[self class] new];
+    });
+    return sharedInstance;
+}
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        ORKIBPieChartViewDataSourceSegment *segment1 = [ORKIBPieChartViewDataSourceSegment new];
+        segment1.value = 10.0;
+        segment1.title = @"Title 1";
+        segment1.color = [UIColor colorWithRed:217.0/225 green:217.0/255 blue:217.0/225 alpha:1];
+        
+        ORKIBPieChartViewDataSourceSegment *segment2 = [ORKIBPieChartViewDataSourceSegment new];
+        segment2.value = 25.0;
+        segment2.title = @"Title 2";
+        segment2.color = [UIColor colorWithRed:142.0/255 green:142.0/255 blue:147.0/255 alpha:1];
+        
+        ORKIBPieChartViewDataSourceSegment *segment3 = [ORKIBPieChartViewDataSourceSegment new];
+        segment3.value = 45.0;
+        segment3.title = @"Title 3";
+        segment3.color = [UIColor colorWithRed:244.0/225 green:190.0/255 blue:74.0/225 alpha:1];
+        
+        _segments = @[segment1, segment2, segment3];
+    }
+    return self;
+}
+- (NSInteger)numberOfSegmentsInPieChartView:(ORKPieChartView *)pieChartView {
+    return self.segments.count;
+}
+- (CGFloat)pieChartView:(ORKPieChartView *)pieChartView valueForSegmentAtIndex:(NSInteger)index {
+    return self.segments[index].value;
+}
+
+- (UIColor *)pieChartView:(ORKPieChartView *)pieChartView colorForSegmentAtIndex:(NSInteger)index {
+    return self.segments[index].color;
+}
+
+- (NSString *)pieChartView:(ORKPieChartView *)pieChartView titleForSegmentAtIndex:(NSInteger)index {
+    return self.segments[index].title;
+}
+
+@end
+
+#endif
 
 
 static const CGFloat TitleToPiePadding = 8.0;
 static const CGFloat PieToLegendPadding = 8.0;
+
 
 @implementation ORKPieChartSection
 
@@ -102,13 +185,73 @@ static const CGFloat PieToLegendPadding = 8.0;
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
-- (void)setDataSource:(id<ORKPieChartViewDataSource>)dataSource {
-    _dataSource = dataSource;
+- (void)sharedInit {
+    _lineWidth = 10;
+    _showsTitleAboveChart = NO;
+    _showsPercentageLabels = YES;
+    _drawsClockwise = YES;
+    
+    // nil reset to default fonts
+    self.titleFont = nil;
+    self.subtitleFont = nil;
+    self.noDataFont = nil;
+    self.percentageLabelFont = nil;
+    self.legendFont = nil;
+    
+    _legendView = nil; // legend lazily initialized on demand
+    
+    _pieView = [[ORKPieChartPieView alloc] initWithParentPieChartView:self];
+    [self addSubview:_pieView];
+    
+    _titleTextView = [[ORKPieChartTitleTextView alloc] initWithParentPieChartView:self];
+    [self addSubview:_titleTextView];
+    
+    [self updateContentSizeCategoryFonts];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(updateContentSizeCategoryFonts)
+                                                 name:UIContentSizeCategoryDidChangeNotification
+                                               object:nil];
+    [self setUpConstraints];
+    [self setNeedsUpdateConstraints];
+}
+
+#pragma mark - API
+
+- (void)reloadData {
     CGFloat sumOfValues = [_pieView normalizeValues];
     [_pieView updatePieLayers];
     [_pieView updatePercentageLabels];
     [_titleTextView showNoDataLabel:(sumOfValues == 0)];
     [self updateLegendView];
+}
+
+- (void)setDataSource:(id<ORKPieChartViewDataSource>)dataSource {
+    _dataSource = dataSource;
+    [self reloadData];
+}
+
+- (void)tintColorDidChange {
+    [_pieView updateColors];
+    [_legendView reloadData];
+}
+
+- (void)setFrame:(CGRect)frame {
+    [super setFrame:frame];
+    _shouldInvalidateLegendViewIntrinsicContentSize = YES;
+    [self setNeedsLayout];
+}
+
+- (void)setBounds:(CGRect)bounds {
+    [super setBounds:bounds];
+    _shouldInvalidateLegendViewIntrinsicContentSize = YES;
+    [self setNeedsLayout];
+}
+
+#pragma mark - Configuration
+
+- (void)setRadiusScaleFactor:(CGFloat)radiusScaleFactor {
+    _pieView.radiusScaleFactor = radiusScaleFactor;
+    [_pieView setNeedsLayout];
 }
 
 - (void)setLineWidth:(CGFloat)lineWidth {
@@ -141,6 +284,46 @@ static const CGFloat PieToLegendPadding = 8.0;
 
 - (NSString *)noDataText {
     return _titleTextView.noDataLabel.text;
+}
+
+- (void)setTitleFont:(UIFont *)titleFont {
+    if (!titleFont) {
+        titleFont = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
+    }
+    _titleFont = titleFont;
+    _titleTextView.titleLabel.font = _titleFont;
+}
+
+- (void)setSubtitleFont:(UIFont *)subtitleFont {
+    if (!subtitleFont) {
+        subtitleFont = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
+    }
+    _subtitleFont = subtitleFont;
+    _titleTextView.textLabel.font = _subtitleFont;
+}
+
+- (void)setNoDataFont:(UIFont *)noDataFont {
+    if (!noDataFont) {
+        noDataFont = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
+    }
+    _noDataFont = noDataFont;
+    _titleTextView.noDataLabel.font = _noDataFont;
+}
+
+- (void)setPercentageLabelFont:(UIFont *)percentageLabelFont {
+    if (!percentageLabelFont) {
+        percentageLabelFont = [UIFont preferredFontForTextStyle:UIFontTextStyleCaption2];
+    }
+    _percentageLabelFont = percentageLabelFont;
+    _pieView.percentageLabelFont = _percentageLabelFont;
+}
+
+- (void)setLegendFont:(UIFont *)legendFont {
+    if (!legendFont) {
+        legendFont = [UIFont preferredFontForTextStyle:UIFontTextStyleCaption1];
+    }
+    _legendFont = legendFont;
+    _legendView.labelFont = _legendFont;
 }
 
 - (void)setTitleColor:(UIColor *)titleColor {
@@ -181,40 +364,14 @@ static const CGFloat PieToLegendPadding = 8.0;
     [_pieView setNeedsLayout];
 }
 
-- (void)tintColorDidChange {
-    [_pieView updateColors];
-    [_legendView reloadData];
-}
+#pragma mark - Presentation
 
 - (void)updateContentSizeCategoryFonts {
-    _titleTextView.titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
-    _titleTextView.textLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
-    _titleTextView.noDataLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
-    _pieView.percentageLabelFont = [UIFont preferredFontForTextStyle:UIFontTextStyleCaption2];
-    _legendView.labelFont = [UIFont preferredFontForTextStyle:UIFontTextStyleCaption1];
-}
-
-- (void)sharedInit {
-    _lineWidth = 10;
-    _showsTitleAboveChart = NO;
-    _showsPercentageLabels = YES;
-    _drawsClockwise = YES;
-    
-    _legendView = nil; // legend lazily initialized on demand
-    
-    _pieView = [[ORKPieChartPieView alloc] initWithParentPieChartView:self];
-    [self addSubview:_pieView];
-    
-    _titleTextView = [[ORKPieChartTitleTextView alloc] initWithParentPieChartView:self];
-    [self addSubview:_titleTextView];
-    
-    [self updateContentSizeCategoryFonts];
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(updateContentSizeCategoryFonts)
-                                                 name:UIContentSizeCategoryDidChangeNotification
-                                               object:nil];
-    [self setUpConstraints];
-    [self setNeedsUpdateConstraints];
+    _titleTextView.titleLabel.font = self.titleFont;
+    _titleTextView.textLabel.font = self.subtitleFont;
+    _titleTextView.noDataLabel.font = self.noDataFont;
+    _pieView.percentageLabelFont = self.percentageLabelFont;
+    _legendView.labelFont = self.legendFont;
 }
 
 - (void)setUpConstraints {
@@ -318,18 +475,6 @@ static const CGFloat PieToLegendPadding = 8.0;
     }
 }
 
-- (void)setFrame:(CGRect)frame {
-    [super setFrame:frame];
-    _shouldInvalidateLegendViewIntrinsicContentSize = YES;
-    [self setNeedsLayout];
-}
-
-- (void)setBounds:(CGRect)bounds {
-    [super setBounds:bounds];
-    _shouldInvalidateLegendViewIntrinsicContentSize = YES;
-    [self setNeedsLayout];
-}
-
 #pragma mark - DataSource
 
 - (UIColor *)colorForSegmentAtIndex:(NSInteger)index {
@@ -339,15 +484,8 @@ static const CGFloat PieToLegendPadding = 8.0;
     } else {
         // Default colors: use tintColor reducing alpha progressively
         NSInteger numberOfSegments = [_dataSource numberOfSegmentsInPieChartView:self];
-        if (numberOfSegments > 1) {
-            // Avoid pure white and pure black
-            CGFloat divisionFactor = (1.0 / numberOfSegments);
-            CGFloat alphaComponent = 1 - (divisionFactor * index);
-            color = [self.tintColor colorWithAlphaComponent:alphaComponent];
-        } else {
-            color = self.tintColor;
+        color = ORKOpaqueColorWithReducedAlphaFromBaseColor(self.tintColor, index, numberOfSegments);
         }
-    }
     return color;
 }
 
@@ -355,7 +493,7 @@ static const CGFloat PieToLegendPadding = 8.0;
     if (animationDuration < 0) {
         @throw [NSException exceptionWithName:NSGenericException reason:@"animationDuration cannot be lower than 0" userInfo:nil];
     }
-    [self layoutIfNeeded]; // layout pass needed so _pieView (a UICollectionView subclass) dequees and displays the cells
+    [self layoutIfNeeded]; // layout pass needed so _legendView (a UICollectionView subclass) dequees and displays the cells
     [_pieView animateWithDuration:animationDuration];
     [_legendView animateWithDuration:animationDuration];
     [_titleTextView animateWithDuration:animationDuration];
@@ -379,6 +517,15 @@ static const CGFloat PieToLegendPadding = 8.0;
     }
     
     return accessibilityElements;
+}
+
+#pragma mark - Interface Builder designable
+
+- (void)prepareForInterfaceBuilder {
+    [super prepareForInterfaceBuilder];
+#if TARGET_INTERFACE_BUILDER
+    self.dataSource = [ORKIBPieChartViewDataSource sharedInstance];
+#endif
 }
 
 @end

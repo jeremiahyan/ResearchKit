@@ -30,11 +30,14 @@
 
 
 #import "ORKAudioContentView.h"
-#import "ORKHelpers.h"
-#import "ORKSkin.h"
-#import "ORKLabel.h"
+#import "ORKAudioGraphView.h"
+
 #import "ORKHeadlineLabel.h"
+#import "ORKLabel.h"
+
 #import "ORKAccessibility.h"
+#import "ORKHelpers_Internal.h"
+#import "ORKSkin.h"
 
 
 // The central blue region.
@@ -42,145 +45,6 @@ static const CGFloat GraphViewBlueZoneHeight = 170;
 
 // The two bands at top and bottom which are "loud" each have this height.
 static const CGFloat GraphViewRedZoneHeight = 25;
-
-
-@interface ORKAudioGraphView : UIView
-
-@property (nonatomic, strong) UIColor *keyColor;
-@property (nonatomic, strong) UIColor *alertColor;
-
-@property (nonatomic, copy) NSArray *values;
-
-@property (nonatomic) CGFloat alertThreshold;
-
-@end
-
-
-static const CGFloat ValueLineWidth = 4.5;
-static const CGFloat ValueLineMargin = 1.5;
-
-@implementation ORKAudioGraphView
-
-- (instancetype)initWithFrame:(CGRect)frame {
-    self = [super initWithFrame:frame];
-    if (self) {
-        [self setUpConstraints];
-        
-#if TARGET_IPHONE_SIMULATOR
-        _values = @[@(0.2),@(0.6),@(0.55), @(0.1), @(0.75), @(0.7)];
-#endif
-    }
-    return self;
-}
-
-- (void)setUpConstraints {
-    
-    NSLayoutConstraint *heightConstraint = [NSLayoutConstraint constraintWithItem:self
-                                                                        attribute:NSLayoutAttributeHeight
-                                                                        relatedBy:NSLayoutRelationEqual
-                                                                           toItem:nil
-                                                                        attribute:NSLayoutAttributeNotAnAttribute
-                                                                       multiplier:1.0
-                                                                         constant:CGFLOAT_MAX];
-    heightConstraint.priority = UILayoutPriorityFittingSizeLevel;
-    
-    [NSLayoutConstraint activateConstraints:@[heightConstraint]];
-}
-
-- (void)setValues:(NSArray *)values {
-    _values = [values copy];
-    [self setNeedsDisplay];
-}
-
-- (void)setKeyColor:(UIColor *)keyColor {
-    _keyColor = [keyColor copy];
-    [self setNeedsDisplay];
-}
-
-- (void)setAlertColor:(UIColor *)alertColor {
-    _alertColor = [alertColor copy];
-    [self setNeedsDisplay];
-}
-
-- (void)setAlertThreshold:(CGFloat)alertThreshold {
-    _alertThreshold = alertThreshold;
-    [self setNeedsDisplay];
-}
-
-- (void)drawRect:(CGRect)rect {
-    CGRect bounds = self.bounds;
-    
-    CGContextRef context = UIGraphicsGetCurrentContext();
-    CGContextSetFillColorWithColor(context, [UIColor whiteColor].CGColor);
-    CGContextFillRect(context, bounds);
-    
-    CGFloat scale = self.window.screen.scale;
-    
-    CGFloat midY = CGRectGetMidY(bounds);
-    CGFloat maxX = CGRectGetMaxX(bounds);
-    CGFloat halfHeight = bounds.size.height / 2;
-    CGContextSaveGState(context);
-    {
-        UIBezierPath *centerLine = [UIBezierPath new];
-        [centerLine moveToPoint:(CGPoint){.x = 0, .y = midY}];
-        [centerLine addLineToPoint:(CGPoint){.x = maxX, .y = midY}];
-        
-        CGContextSetLineWidth(context, 1.0 / scale);
-        [_keyColor setStroke];
-        CGFloat lengths[2] = {3, 3};
-        CGContextSetLineDash(context, 0, lengths, 2);
-        
-        [centerLine stroke];
-    }
-    CGContextRestoreGState(context);
-    
-    CGFloat lineStep = ValueLineMargin + ValueLineWidth;
-    
-    CGContextSaveGState(context);
-    {
-        CGFloat x = maxX - lineStep / 2;
-        CGContextSetLineWidth(context, ValueLineWidth);
-        CGContextSetLineCap(context, kCGLineCapRound);
-        
-        UIBezierPath *path1 = [UIBezierPath new];
-        path1.lineCapStyle = kCGLineCapRound;
-        path1.lineWidth = ValueLineWidth;
-        UIBezierPath *path2 = [path1 copy];
-        
-        for (NSNumber *value in [_values reverseObjectEnumerator]) {
-            CGFloat floatValue = value.doubleValue;
-            
-            UIBezierPath *path = nil;
-            if (floatValue > _alertThreshold) {
-                path = path1;
-                [_alertColor setStroke];
-            } else {
-                path = path2;
-                [_keyColor setStroke];
-            }
-            [path moveToPoint:(CGPoint){.x = x, .y = midY - floatValue*halfHeight}];
-            [path addLineToPoint:(CGPoint){.x = x, .y = midY + floatValue*halfHeight}];
-            
-            x -= lineStep;
-            
-            if (x < 0) {
-                break;
-            }
-            
-        }
-        
-        [_alertColor setStroke];
-        [path1 stroke];
-        
-        [_keyColor setStroke];
-        [path2 stroke];
-        
-    }
-    CGContextRestoreGState(context);
-}
-
-@end
-
 
 @interface ORKAudioTimerLabel : ORKLabel
 
@@ -196,7 +60,6 @@ static const CGFloat ValueLineMargin = 1.5;
 }
 
 @end
-
 
 @interface ORKAudioContentView ()
 
@@ -232,8 +95,8 @@ static const CGFloat ValueLineMargin = 1.5;
         [self addSubview:_timerLabel];
         [self addSubview:_graphView];
         
-        _timerLabel.text = @"06:00";
         _alertLabel.text = ORKLocalizedString(@"AUDIO_TOO_LOUD_LABEL", nil);
+        // _timerLabel.text set in -updateTimerLabel:
         
         self.alertThreshold = GraphViewBlueZoneHeight / ((GraphViewRedZoneHeight * 2) + GraphViewBlueZoneHeight);
         
@@ -328,17 +191,16 @@ static const CGFloat ValueLineMargin = 1.5;
 }
 
 - (void)updateTimerLabel {
-    static NSDateComponentsFormatter *_formatter = nil;
+    static NSDateComponentsFormatter *formatter = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        NSDateComponentsFormatter *formatter = [NSDateComponentsFormatter new];
+        formatter = [NSDateComponentsFormatter new];
         formatter.unitsStyle = NSDateComponentsFormatterUnitsStylePositional;
         formatter.zeroFormattingBehavior = NSDateComponentsFormatterZeroFormattingBehaviorPad;
         formatter.allowedUnits = NSCalendarUnitMinute | NSCalendarUnitSecond;
-        _formatter = formatter;
     });
     
-    NSString *string = [_formatter stringFromTimeInterval:MAX(round(_timeLeft),0)];
+    NSString *string = [formatter stringFromTimeInterval:MAX(round(_timeLeft),0)];
     _timerLabel.text = string;
     _timerLabel.hidden = (string == nil);    
 }
@@ -351,6 +213,10 @@ static const CGFloat ValueLineMargin = 1.5;
 - (void)updateAlertLabelHidden {
     NSNumber *sample = _samples.lastObject;
     BOOL show = (!_finished && (sample.doubleValue > _alertThreshold)) || _failed;
+    
+    if (_alertLabel.hidden && show) {
+        UIAccessibilityPostNotification(UIAccessibilityAnnouncementNotification, _alertLabel.text);
+    }
     _alertLabel.hidden = !show;
 }
 
@@ -384,11 +250,9 @@ static const CGFloat ValueLineMargin = 1.5;
 }
 
 - (NSString *)accessibilityLabel {
-    if (_alertLabel.isHidden) {
-        return _timerLabel.accessibilityLabel;
-    }
-    
-    return ORKAccessibilityStringForVariables(_timerLabel.accessibilityLabel, _alertLabel.accessibilityLabel);
+    NSString *timerAxString = _timerLabel.isHidden ? nil : _timerLabel.accessibilityLabel;
+    NSString *alertAxString = _alertLabel.isHidden ? nil : _alertLabel.accessibilityLabel;
+    return ORKAccessibilityStringForVariables(ORKLocalizedString(@"AX_AUDIO_BAR_GRAPH", nil), timerAxString, alertAxString);
 }
 
 - (UIAccessibilityTraits)accessibilityTraits {

@@ -29,7 +29,9 @@
  */
 
 
-#import <ResearchKit/ResearchKit_Private.h>
+@import Foundation;
+#import <ResearchKit/ORKDefines.h>
+#import <ResearchKit/ORKActiveStep.h>
 
 
 NS_ASSUME_NONNULL_BEGIN
@@ -39,7 +41,7 @@ ORK_CLASS_AVAILABLE
 
 @property (nonatomic, assign) ORKBodySagittal movingDirection;
 @property (nonatomic, assign, getter = isDominantHandTested) BOOL dominantHandTested;
-@property (nonatomic, assign) int numberOfPegs;
+@property (nonatomic, assign) NSInteger numberOfPegs;
 @property (nonatomic, assign) double threshold;
 
 @end

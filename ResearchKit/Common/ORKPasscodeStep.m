@@ -30,8 +30,10 @@
 
 
 #import "ORKPasscodeStep.h"
+
 #import "ORKPasscodeStepViewController.h"
-#import "ORKHelpers.h"
+
+#import "ORKHelpers_Internal.h"
 
 
 @implementation ORKPasscodeStep
@@ -40,14 +42,22 @@
     return [ORKPasscodeStepViewController class];
 }
 
-- (BOOL)showsProgress {
-    return NO;
++ (instancetype)passcodeStepWithIdentifier:(NSString *)identifier
+                              passcodeFlow:(ORKPasscodeFlow)passcodeFlow {
+    
+    ORKPasscodeStep *step = [[ORKPasscodeStep alloc] initWithIdentifier:identifier];
+    step.passcodeFlow = passcodeFlow;
+    step.showsProgress = NO;
+    step.useBiometrics = YES;
+    return step;
 }
 
 - (instancetype)initWithCoder:(NSCoder *)aDecoder {
     self = [super initWithCoder:aDecoder];
     if (self) {
         ORK_DECODE_INTEGER(aDecoder, passcodeType);
+        ORK_DECODE_ENUM(aDecoder, passcodeFlow);
+        ORK_DECODE_BOOL(aDecoder, useBiometrics);
     }
     return self;
 }
@@ -55,6 +65,8 @@
 - (void)encodeWithCoder:(NSCoder *)aCoder {
     [super encodeWithCoder:aCoder];
     ORK_ENCODE_INTEGER(aCoder, passcodeType);
+    ORK_ENCODE_ENUM(aCoder, passcodeFlow);
+    ORK_ENCODE_BOOL(aCoder, useBiometrics);
 }
 
 + (BOOL)supportsSecureCoding {
@@ -64,6 +76,8 @@
 - (instancetype)copyWithZone:(NSZone *)zone {
     ORKPasscodeStep *step = [super copyWithZone:zone];
     step.passcodeType = self.passcodeType;
+    step.passcodeFlow = self.passcodeFlow;
+    step.useBiometrics = self.useBiometrics;
     return step;
 }
 
@@ -72,7 +86,9 @@
     
     __typeof(self) castObject = object;
     return (isParentSame &&
-            self.passcodeType == castObject.passcodeType);
+            self.passcodeFlow == castObject.passcodeFlow &&
+            self.passcodeType == castObject.passcodeType &&
+            self.useBiometrics == castObject.useBiometrics);
 }
 
 @end

@@ -29,11 +29,14 @@
  */
 
 
-#import <Foundation/Foundation.h>
+@import Foundation;
+
+
+NS_ASSUME_NONNULL_BEGIN
 
 @interface ORKTowerOfHanoiTower : NSObject
 
-@property(nonatomic, copy, readonly) NSArray *disks;
+@property (nonatomic, copy, readonly) NSArray *disks;
 
 + (instancetype)emptyTower;
 
@@ -42,3 +45,5 @@
 - (BOOL)recieveDiskFrom:(ORKTowerOfHanoiTower *)donorTower;
 
 @end
+
+NS_ASSUME_NONNULL_END

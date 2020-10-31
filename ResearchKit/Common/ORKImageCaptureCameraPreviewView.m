@@ -30,10 +30,12 @@
 
 
 #import "ORKImageCaptureCameraPreviewView.h"
+
 #import "ORKTintedImageView.h"
-#import "ORKHelpers.h"
+
+#import "ORKHelpers_Internal.h"
+
 #import <tgmath.h>
-#import "ORKDefines_Private.h"
 
 
 @implementation ORKImageCaptureCameraPreviewView {
@@ -75,6 +77,15 @@
 
 - (void)setUpConstraints {
     NSMutableArray *constraints = [NSMutableArray new];
+    
+    [_templateImageView setContentHuggingPriority:0 forAxis:UILayoutConstraintAxisHorizontal];
+    [_templateImageView setContentHuggingPriority:0 forAxis:UILayoutConstraintAxisVertical];
+    [_templateImageView setContentCompressionResistancePriority:0 forAxis:UILayoutConstraintAxisHorizontal];
+    [_templateImageView setContentCompressionResistancePriority:0 forAxis:UILayoutConstraintAxisVertical];
+    [_capturedImageView setContentHuggingPriority:0 forAxis:UILayoutConstraintAxisHorizontal];
+    [_capturedImageView setContentHuggingPriority:0 forAxis:UILayoutConstraintAxisVertical];
+    [_capturedImageView setContentCompressionResistancePriority:0 forAxis:UILayoutConstraintAxisHorizontal];
+    [_capturedImageView setContentCompressionResistancePriority:0 forAxis:UILayoutConstraintAxisVertical];
     
     // Make the insets for the template image view changeable later
     _templateImageViewTopInsetConstraint = [NSLayoutConstraint constraintWithItem:_templateImageView
@@ -165,7 +176,7 @@
 
 - (void)setCapturedImage:(UIImage *)capturedImage {
     _capturedImageView.image = capturedImage;
-    _previewLayer.hidden = capturedImage!=nil;
+    _previewLayer.hidden = (capturedImage != nil);
 }
 
 - (void)layoutSubviews {
@@ -212,12 +223,12 @@
     NSArray *inputs = _previewLayer.session.inputs;
     if (!inputs || inputs.count == 0)
         return UIEdgeInsetsZero;
-    AVCaptureDeviceInput* input = (AVCaptureDeviceInput*)inputs[0];
-    CMVideoDimensions cmd = CMVideoFormatDescriptionGetDimensions(input.device.activeFormat.formatDescription);
-    AVCaptureVideoOrientation avcvo = _previewLayer.connection.videoOrientation;
-    BOOL landscape = avcvo == AVCaptureVideoOrientationLandscapeLeft || avcvo == AVCaptureVideoOrientationLandscapeRight;
+    AVCaptureDeviceInput *input = (AVCaptureDeviceInput*)inputs[0];
+    CMVideoDimensions videoDimensions = CMVideoFormatDescriptionGetDimensions(input.device.activeFormat.formatDescription);
+    AVCaptureVideoOrientation orientation = _previewLayer.connection.videoOrientation;
+    BOOL landscape = (orientation == AVCaptureVideoOrientationLandscapeLeft || orientation == AVCaptureVideoOrientationLandscapeRight);
     
-    CGRect contentFrame = AVMakeRectWithAspectRatioInsideRect(CGSizeMake(landscape ? cmd.width : cmd.height, landscape ? cmd.height : cmd.width), _previewLayer.frame);
+    CGRect contentFrame = AVMakeRectWithAspectRatioInsideRect(CGSizeMake(landscape ? videoDimensions.width : videoDimensions.height, landscape ? videoDimensions.height : videoDimensions.width), _previewLayer.frame);
     CGRect overallFrame = _previewLayer.frame;
     return UIEdgeInsetsMake(contentFrame.origin.y - overallFrame.origin.y,
                             contentFrame.origin.x - overallFrame.origin.x,

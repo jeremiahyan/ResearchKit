@@ -29,10 +29,7 @@
  */
 
 
-#import <UIKit/UIKit.h>
-#import <ResearchKit/ResearchKit.h>
-#import "ORKAnswerFormat_Internal.h"
-#import "ORKScaleSlider.h"
+@import UIKit;
 
 
 NS_ASSUME_NONNULL_BEGIN
@@ -41,12 +38,21 @@ NS_ASSUME_NONNULL_BEGIN
 @class ORKScaleValueLabel;
 @class ORKScaleRangeDescriptionLabel;
 @class ORKScaleRangeImageView;
+@class ORKScaleSliderView;
+@protocol ORKScaleAnswerFormatProvider;
+
+@protocol ORKScaleSliderViewDelegate <NSObject>
+
+- (void)scaleSliderViewCurrentValueDidChange:(ORKScaleSliderView *)sliderView;
+
+@end
+
 
 @interface ORKScaleSliderView : UIView
 
-- (instancetype)initWithFormatProvider:(id<ORKScaleAnswerFormatProvider>)formatProvider;
+- (instancetype)initWithFormatProvider:(id<ORKScaleAnswerFormatProvider>)formatProvider delegate:(id<ORKScaleSliderViewDelegate>)delegate;
 
-@property (nonatomic, strong, readonly) ORKScaleSlider *slider;
+@property (nonatomic, weak, readonly) id<ORKScaleSliderViewDelegate> delegate;
 
 @property (nonatomic, strong, readonly) id<ORKScaleAnswerFormatProvider> formatProvider;
 
@@ -64,7 +70,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, strong, readonly) ORKScaleValueLabel *valueLabel;
 
-@property (nonatomic, strong, nullable) NSNumber *currentValue;
+// Accepts NSNumber for continous scale or discrete scale.
+// Accepts NSArray<id<NSCopying, NSCoding, NSObject>> for text scale.
+@property (nonatomic, strong, nullable) id currentAnswerValue;
 
 @end
 

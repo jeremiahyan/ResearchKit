@@ -29,12 +29,18 @@
  */
 
 
-#import <UIKit/UIKit.h>
+@import UIKit;
 
+
+NS_ASSUME_NONNULL_BEGIN
 
 @interface ORKScaleSlider : UISlider
 
 @property (nonatomic, assign) BOOL showThumb;
+
+@property (nonatomic, assign) BOOL hideValueMarkers;
+
+@property (nonatomic, assign) BOOL isWaitingForUserFeedback;
 
 @property (nonatomic, assign) NSUInteger numberOfSteps;
 
@@ -42,4 +48,10 @@
 
 @property (nonatomic, copy, nullable) NSArray *textChoices;
 
+@property (nonatomic, copy, nullable) NSArray<UIColor *> *gradientColors;
+
+@property (nonatomic, copy, nullable) NSArray<NSNumber *> *gradientLocations;
+
 @end
+
+NS_ASSUME_NONNULL_END

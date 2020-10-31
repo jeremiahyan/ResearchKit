@@ -29,14 +29,22 @@
  */
 
 
-#import "ORKStepViewController.h"
-#import "ORKDefines_Private.h"
-#import "ORKTaskViewController_Internal.h"
-#import "ORKSkin.h"
 #import "ORKStepViewController_Internal.h"
-#import "ORKHelpers.h"
-#import "UIBarButtonItem+ORKBarButtonItem.h"
 
+#import "ORKStepViewController_Internal.h"
+#import "ORKTaskViewController_Internal.h"
+
+#import "ORKCollectionResult.h"
+#import "ORKReviewStep_Internal.h"
+
+#import "ORKNavigationContainerView.h"
+
+#import "ORKHelpers_Internal.h"
+#import "ORKSkin.h"
+#import "ORKStepContentView.h"
+
+static const CGFloat iPadStepTitleLabelPadding = 15.0;
+static const CGFloat iPadStepTitleLabelFontSize = 50.0;
 
 @interface ORKStepViewController () {
     BOOL _hasBeenPresented;
@@ -50,15 +58,18 @@
 @end
 
 
-@implementation ORKStepViewController
+@implementation ORKStepViewController {
+    UIView *_iPadBackgroundView;
+    UIView *_iPadContentView;
+    UILabel *_iPadStepTitleLabel;
+    NSArray<NSLayoutConstraint *> *_iPadConstraints;
+}
 
 - (void)initializeInternalButtonItems {
-    _internalBackButtonItem = [UIBarButtonItem ork_backBarButtonItemWithTarget:self action:@selector(goBackward)];
-    _internalBackButtonItem.accessibilityLabel = ORKLocalizedString(@"AX_BUTTON_BACK", nil);
     _internalContinueButtonItem = [[UIBarButtonItem alloc] initWithTitle:ORKLocalizedString(@"BUTTON_NEXT", nil) style:UIBarButtonItemStylePlain target:self action:@selector(goForward)];
     _internalDoneButtonItem = [[UIBarButtonItem alloc] initWithTitle:ORKLocalizedString(@"BUTTON_DONE", nil) style:UIBarButtonItemStyleDone target:self action:@selector(goForward)];
-    _internalSkipButtonItem = [[UIBarButtonItem alloc] initWithTitle:ORKLocalizedString(@"BUTTON_SKIP", nil) style:UIBarButtonItemStylePlain target:self action:@selector(skipForward)];
-    _backButtonItem = _internalBackButtonItem;
+    _internalSkipButtonItem = [[UIBarButtonItem alloc] initWithTitle:ORKLocalizedString(@"BUTTON_SKIP", nil) style:UIBarButtonItemStylePlain target:self action:@selector(skip:)];
+    _backButtonItem = nil;
 }
 
 #pragma clang diagnostic push
@@ -70,19 +81,13 @@
     }
     return self;
 }
+
 #pragma clang diagnostic pop
 
-- (instancetype)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil {
-    self = [super initWithNibName:nibNameOrNil bundle:nibBundleOrNil];
-    if (self) {
-        [self initializeInternalButtonItems];
-    }
-    return self;
-}
-
 - (instancetype)initWithStep:(ORKStep *)step {
-    self = [self init];
+    self = [super initWithNibName:nil bundle:nil];
     if (self) {
+        _wasSkipped = false;
         [self initializeInternalButtonItems];
         [self setStep:step];
     }
@@ -90,24 +95,166 @@
 }
 
 - (instancetype)initWithStep:(ORKStep *)step result:(ORKResult *)result {
-    // Default implementation ignores the previous result.
+    // The default implementation ignores the previous result.
     return [self initWithStep:step];
 }
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-
-    self.view.backgroundColor = ORKColor(ORKBackgroundColorKey);
     
+    self.view.backgroundColor = ORKColor(ORKBackgroundColorKey);
+    if (!_shouldIgnoreiPadDesign && ORKNeedWideScreenDesign(self.view)) {
+        [self setupiPadBackgroundView];
+        [self setupiPadContentView];
+        [self setupiPadStepTitleLabel];
+        [self setupiPadConstraints];
+    }
+}
+
+- (void)updateBarButtonItems {
+    if (self.shouldPresentInReview) {
+        self.navigationItem.leftBarButtonItem = self.cancelButtonItem;
+        self.navigationItem.rightBarButtonItem = self.internalDoneButtonItem;
+    } else {
+        self.navigationItem.leftBarButtonItem = self.backButtonItem;
+        self.navigationItem.rightBarButtonItem = self.cancelButtonItem;
+    }
+}
+
+- (void)setShouldPresentInReview:(BOOL)shouldPresentInReview {
+    _shouldPresentInReview = shouldPresentInReview;
+    [self updateBarButtonItems];
+}
+
+- (void)setupiPadBackgroundView {
+    if (!_iPadBackgroundView) {
+        _iPadBackgroundView = [UIView new];
+    }
+    [self.view addSubview:_iPadBackgroundView];
+}
+
+- (void)setupiPadContentView {
+    if (!_iPadContentView) {
+        _iPadContentView = [UIView new];
+    }
+    [_iPadBackgroundView addSubview:_iPadContentView];
+}
+
+- (void)setupiPadStepTitleLabel {
+    if (!_iPadStepTitleLabel) {
+        _iPadStepTitleLabel = [UILabel new];
+    }
+    _iPadStepTitleLabel.numberOfLines = 0;
+    _iPadStepTitleLabel.textAlignment = NSTextAlignmentNatural;
+    [_iPadStepTitleLabel setFont:[UIFont systemFontOfSize:iPadStepTitleLabelFontSize weight:UIFontWeightBold]];
+    [_iPadStepTitleLabel setAdjustsFontSizeToFitWidth:YES];
+    [_iPadBackgroundView addSubview:_iPadStepTitleLabel];
+}
+
+- (void)setiPadStepTitleLabelText:(NSString *)text {
+    if (_iPadStepTitleLabel) {
+        //        [_iPadStepTitleLabel setText: text];
+    }
+}
+
+- (void)setiPadBackgroundViewColor:(UIColor *)color {
+    if (_iPadBackgroundView) {
+        //        [_iPadBackgroundView setBackgroundColor:color];
+    }
+}
+
+- (void)setupiPadConstraints {
+    _iPadBackgroundView.translatesAutoresizingMaskIntoConstraints = NO;
+    _iPadContentView.translatesAutoresizingMaskIntoConstraints = NO;
+    _iPadStepTitleLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    
+    if (_iPadConstraints) {
+        [NSLayoutConstraint deactivateConstraints:_iPadConstraints];
+    }
+    
+    _iPadConstraints = @[
+        [NSLayoutConstraint constraintWithItem:_iPadBackgroundView
+                                     attribute:NSLayoutAttributeTop
+                                     relatedBy:NSLayoutRelationEqual
+                                        toItem:self.view.safeAreaLayoutGuide
+                                     attribute:NSLayoutAttributeTop
+                                    multiplier:1.0
+                                      constant:0.0],
+        [NSLayoutConstraint constraintWithItem:_iPadBackgroundView
+                                     attribute:NSLayoutAttributeLeft
+                                     relatedBy:NSLayoutRelationEqual
+                                        toItem:self.view.safeAreaLayoutGuide
+                                     attribute:NSLayoutAttributeLeft
+                                    multiplier:1.0
+                                      constant:ORKiPadBackgroundViewLeftRightPadding],
+        [NSLayoutConstraint constraintWithItem:_iPadBackgroundView
+                                     attribute:NSLayoutAttributeRight
+                                     relatedBy:NSLayoutRelationEqual
+                                        toItem:self.view.safeAreaLayoutGuide
+                                     attribute:NSLayoutAttributeRight
+                                    multiplier:1.0
+                                      constant:-ORKiPadBackgroundViewLeftRightPadding],
+        [NSLayoutConstraint constraintWithItem:_iPadBackgroundView
+                                     attribute:NSLayoutAttributeBottom
+                                     relatedBy:NSLayoutRelationEqual
+                                        toItem:self.view.safeAreaLayoutGuide
+                                     attribute:NSLayoutAttributeBottom
+                                    multiplier:1.0
+                                      constant:-ORKiPadBackgroundViewBottomPadding],
+        [NSLayoutConstraint constraintWithItem:_iPadStepTitleLabel
+                                     attribute:NSLayoutAttributeTop
+                                     relatedBy:NSLayoutRelationEqual
+                                        toItem:_iPadBackgroundView
+                                     attribute:NSLayoutAttributeTop
+                                    multiplier:1.0
+                                      constant:ORKiPadBackgroundViewBottomPadding],
+        [NSLayoutConstraint constraintWithItem:_iPadStepTitleLabel
+                                     attribute:NSLayoutAttributeLeft
+                                     relatedBy:NSLayoutRelationEqual
+                                        toItem:_iPadBackgroundView
+                                     attribute:NSLayoutAttributeLeft
+                                    multiplier:1.0
+                                      constant:iPadStepTitleLabelPadding],
+        [NSLayoutConstraint constraintWithItem:_iPadStepTitleLabel
+                                     attribute:NSLayoutAttributeRight
+                                     relatedBy:NSLayoutRelationEqual
+                                        toItem:_iPadBackgroundView
+                                     attribute:NSLayoutAttributeRight
+                                    multiplier:1.0
+                                      constant:-iPadStepTitleLabelPadding],
+        [NSLayoutConstraint constraintWithItem:_iPadContentView
+                                     attribute:NSLayoutAttributeTop
+                                     relatedBy:NSLayoutRelationEqual
+                                        toItem:_iPadStepTitleLabel
+                                     attribute:NSLayoutAttributeBottom
+                                    multiplier:1.0
+                                      constant:iPadStepTitleLabelPadding],
+        [NSLayoutConstraint constraintWithItem:_iPadContentView
+                                     attribute:NSLayoutAttributeLeft
+                                     relatedBy:NSLayoutRelationEqual
+                                        toItem:_iPadBackgroundView
+                                     attribute:NSLayoutAttributeLeft
+                                    multiplier:1.0
+                                      constant:iPadStepTitleLabelPadding],
+        [NSLayoutConstraint constraintWithItem:_iPadContentView
+                                     attribute:NSLayoutAttributeRight
+                                     relatedBy:NSLayoutRelationEqual
+                                        toItem:_iPadBackgroundView
+                                     attribute:NSLayoutAttributeRight
+                                    multiplier:1.0
+                                      constant:-iPadStepTitleLabelPadding],
+        [NSLayoutConstraint constraintWithItem:_iPadContentView
+                                     attribute:NSLayoutAttributeBottom
+                                     relatedBy:NSLayoutRelationEqual
+                                        toItem:_iPadBackgroundView
+                                     attribute:NSLayoutAttributeBottom
+                                    multiplier:1.0
+                                      constant:-iPadStepTitleLabelPadding]
+    ];
+    [NSLayoutConstraint activateConstraints:_iPadConstraints];
 }
 
 - (void)setupButtons {
-    if (self.hasPreviousStep == YES) {
-        [self ork_setBackButtonItem: _internalBackButtonItem];
-    } else {
-        [self ork_setBackButtonItem:nil];
-    }
-    
     if (self.hasNextStep == YES) {
         self.continueButtonItem = _internalContinueButtonItem;
     } else {
@@ -122,7 +269,7 @@
         @throw [NSException exceptionWithName:NSGenericException reason:@"Cannot set step after presenting step view controller" userInfo:nil];
     }
     if (step && step.identifier == nil) {
-        ORK_Log_Warning(@"Step identifier should not be nil.");
+        ORK_Log_Debug("Step identifier should not be nil.");
     }
     
     _step = step;
@@ -138,7 +285,8 @@
 
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
-    ORK_Log_Debug(@"%@", self);
+    ORK_Log_Debug("%@", self);
+    
     
     // Required here (instead of viewDidLoad) because any custom buttons are set once the delegate responds to the stepViewControllerWillAppear,
     // otherwise there is a minor visual glitch, where the original buttons are displayed on the UI for a short period. This is not placed after
@@ -149,7 +297,7 @@
     if ([self.delegate respondsToSelector:@selector(stepViewControllerWillAppear:)]) {
         [self.delegate stepViewControllerWillAppear:self];
     }
-        
+    
     if (!_step) {
         @throw [NSException exceptionWithName:NSGenericException reason:@"Cannot present step view controller without a step" userInfo:nil];
     }
@@ -172,14 +320,12 @@
 - (void)viewDidDisappear:(BOOL)animated {
     
     [super viewDidDisappear:animated];
-
-    // Set endDate if current stepVC is dismissed
-    // Because stepVC is embeded in a UIPageViewController,
-    // when current stepVC is out of screen, it didn't belongs to UIPageViewController's viewControllers any more.
-    // If stepVC is just covered by a modal view, dismissedDate should not be set.
+    
+    // Set endDate if the current ORKStepViewController's view disappears, and is not the topViewController anymore
+    // That way, if the step view controller is just covered by a modal view, dismissedDate will not be set.
     if (self.nextResponder == nil ||
-        ([self.parentViewController isKindOfClass:[UIPageViewController class]]
-            && NO == [[(UIPageViewController *)self.parentViewController viewControllers] containsObject:self])) {
+        ([self.parentViewController isKindOfClass:[UINavigationController class]]
+         && ((UINavigationController *)self.parentViewController).topViewController != self)) {
         self.dismissedDate = [NSDate date];
     }
     _dismissing = NO;
@@ -189,14 +335,15 @@
 }
 
 - (void)setContinueButtonTitle:(NSString *)continueButtonTitle {
+    _continueButtonTitle = continueButtonTitle;
     self.internalContinueButtonItem.title = continueButtonTitle;
     self.internalDoneButtonItem.title = continueButtonTitle;
     
     self.continueButtonItem = self.internalContinueButtonItem;
 }
 
-- (NSString *)continueButtonTitle {
-    return self.continueButtonItem.title;
+- (void)showActivityIndicatorInContinueButton:(BOOL)showActivityIndicator {
+    [_navigationFooterView showActivityIndicator:showActivityIndicator];
 }
 
 - (void)setLearnMoreButtonTitle:(NSString *)learnMoreButtonTitle {
@@ -217,47 +364,30 @@
     return self.skipButtonItem.title;
 }
 
-// internal use version to set backButton, without overriding "_internalBackButtonItem"
-- (void)ork_setBackButtonItem:(UIBarButtonItem *)backButton {
-    backButton.accessibilityLabel = ORKLocalizedString(@"AX_BUTTON_BACK", nil);
-    _backButtonItem = backButton;
-    [self updateNavLeftBarButtonItem];
-}
-
-// Subclass should avoid using this method, which wound overide "_internalBackButtonItem"
 - (void)setBackButtonItem:(UIBarButtonItem *)backButton {
     backButton.accessibilityLabel = ORKLocalizedString(@"AX_BUTTON_BACK", nil);
     _backButtonItem = backButton;
-    _internalBackButtonItem = backButton;
-    [self updateNavLeftBarButtonItem];
-}
-
-- (void)updateNavRightBarButtonItem {
-    self.navigationItem.rightBarButtonItem = _cancelButtonItem;
-}
-
-- (void)updateNavLeftBarButtonItem {
-    self.navigationItem.leftBarButtonItem = _backButtonItem;
+    [self updateBarButtonItems];
 }
 
 - (void)setCancelButtonItem:(UIBarButtonItem *)cancelButton {
     _cancelButtonItem = cancelButton;
-    [self updateNavRightBarButtonItem];
+    [self updateBarButtonItems];
 }
 
 - (BOOL)hasPreviousStep {
-    STRONGTYPE(self.delegate) delegate = self.delegate;
-    if (delegate && [delegate respondsToSelector:@selector(stepViewControllerHasPreviousStep:)]) {
-        return [delegate stepViewControllerHasPreviousStep:self];
+    ORKStrongTypeOf(self.delegate) strongDelegate = self.delegate;
+    if (strongDelegate && [strongDelegate respondsToSelector:@selector(stepViewControllerHasPreviousStep:)]) {
+        return [strongDelegate stepViewControllerHasPreviousStep:self];
     }
     
     return NO;
 }
 
 - (BOOL)hasNextStep {
-    STRONGTYPE(self.delegate) delegate = self.delegate;
-    if (delegate && [delegate respondsToSelector:@selector(stepViewControllerHasNextStep:)]) {
-        return [delegate stepViewControllerHasNextStep:self];
+    ORKStrongTypeOf(self.delegate) strongDelegate = self.delegate;
+    if (strongDelegate && [strongDelegate respondsToSelector:@selector(stepViewControllerHasNextStep:)]) {
+        return [strongDelegate stepViewControllerHasNextStep:self];
     }
     
     return NO;
@@ -265,18 +395,34 @@
 
 - (ORKStepResult *)result {
     
-    ORKStepResult *sResult = [[ORKStepResult alloc] initWithStepIdentifier:self.step.identifier results:@[]];
-    sResult.startDate = self.presentedDate;
-    sResult.endDate = self.dismissedDate? :[NSDate date];
+    ORKStepResult *stepResult = [[ORKStepResult alloc] initWithStepIdentifier:self.step.identifier results:_addedResults ? : @[]];
+    stepResult.startDate = self.presentedDate ? : [NSDate date];
+    stepResult.endDate = self.dismissedDate ? : [NSDate date];
     
-    return sResult;
+    return stepResult;
+}
+
+- (void)addResult:(ORKResult *)result {
+    ORKResult *copy = [result copy];
+    if (_addedResults == nil) {
+        _addedResults = @[copy];
+    } else {
+        NSUInteger idx = [_addedResults indexOfObject:copy];
+        if (idx == NSNotFound) {
+            _addedResults = [_addedResults arrayByAddingObject:copy];
+        } else {
+            NSMutableArray *results = [_addedResults mutableCopy];
+            [results insertObject:copy atIndex:idx];
+            _addedResults = [results copy];
+        }
+    }
 }
 
 - (void)notifyDelegateOnResultChange {
     
-    STRONGTYPE(self.delegate) delegate = self.delegate;
-    if ([delegate respondsToSelector:@selector(stepViewControllerResultDidChange:)]) {
-        [delegate stepViewControllerResultDidChange:self];
+    ORKStrongTypeOf(self.delegate) strongDelegate = self.delegate;
+    if ([strongDelegate respondsToSelector:@selector(stepViewControllerResultDidChange:)]) {
+        [strongDelegate stepViewControllerResultDidChange:self];
     }
 }
 
@@ -284,55 +430,106 @@
     return _hasBeenPresented;
 }
 
++ (UIInterfaceOrientationMask)supportedInterfaceOrientations {
+    // The default values for a view controller's supported interface orientations is set to
+    // UIInterfaceOrientationMaskAll for the iPad idiom and UIInterfaceOrientationMaskAllButUpsideDown for the iPhone idiom.
+    UIInterfaceOrientationMask supportedOrientations = UIInterfaceOrientationMaskAllButUpsideDown;
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+        supportedOrientations = UIInterfaceOrientationMaskAll;
+    }
+    return supportedOrientations;
+}
+
+- (BOOL)isBeingReviewed {
+    return _parentReviewStep != nil;
+}
+
+- (BOOL)readOnlyMode {
+    return self.isBeingReviewed && _parentReviewStep.isStandalone;
+}
+
 #pragma mark - Action Handlers
 
 - (void)goForward {
-    
-    STRONGTYPE(self.delegate) strongDelegate = self.delegate;
-    [strongDelegate stepViewController:self didFinishWithNavigationDirection:ORKStepViewControllerNavigationDirectionForward];
+    _wasSkipped = false;
+    [self navigateForward];
+}
+
+- (void)navigateForward {
+    ORKStepViewControllerNavigationDirection direction = self.isBeingReviewed ? ORKStepViewControllerNavigationDirectionReverse : ORKStepViewControllerNavigationDirectionForward;
+    ORKStrongTypeOf(self.delegate) strongDelegate = self.delegate;
+    [strongDelegate stepViewController:self didFinishWithNavigationDirection:direction];
     UIAccessibilityPostNotification(UIAccessibilityScreenChangedNotification, nil);
 }
 
 - (void)goBackward {
-    
-    STRONGTYPE(self.delegate) strongDelegate = self.delegate;
+    ORKStrongTypeOf(self.delegate) strongDelegate = self.delegate;
     [strongDelegate stepViewController:self didFinishWithNavigationDirection:ORKStepViewControllerNavigationDirectionReverse];
     UIAccessibilityPostNotification(UIAccessibilityScreenChangedNotification, nil);
 }
 
+- (void)skip:(UIView *)sender {
+    if (self.isBeingReviewed && !self.readOnlyMode) {
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:nil
+                                                                       message:nil
+                                                                preferredStyle:UIAlertControllerStyleActionSheet];
+        [alert addAction:[UIAlertAction actionWithTitle:ORKLocalizedString(@"BUTTON_CLEAR_ANSWER", nil)
+                                                  style:UIAlertActionStyleDestructive
+                                                handler:^(UIAlertAction *action) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self skipForward];
+            });
+        }]];
+        [alert addAction:[UIAlertAction actionWithTitle:ORKLocalizedString(@"BUTTON_CANCEL", nil)
+                                                  style:UIAlertActionStyleCancel
+                                                handler:nil
+                          ]];
+        alert.popoverPresentationController.sourceView = sender;
+        alert.popoverPresentationController.sourceRect = sender.bounds;
+        [self presentViewController:alert animated:YES completion:nil];
+    } else {
+        [self skipForward];
+    }
+}
+
 - (void)skipForward {
-    [self goForward];
+    _wasSkipped = true;
+    [self navigateForward];
+}
+
+- (UIView *)viewForiPadLayoutConstraints {
+    return _iPadContentView;
 }
 
 - (ORKTaskViewController *)taskViewController {
-    UIPageViewController *pageViewController = (UIPageViewController *)[self parentViewController];
-    if (pageViewController && [pageViewController isKindOfClass:[UIPageViewController class]]) {
-        UINavigationController *navigationController = (UINavigationController *)[pageViewController parentViewController];
-        ORKTaskViewController *taskViewController = (ORKTaskViewController *)[navigationController parentViewController];
-        if (taskViewController && [taskViewController isKindOfClass:[ORKTaskViewController class]]) {
-            return taskViewController;
-        }
+    // look to parent view controller for a task view controller
+    UIViewController *parentViewController = [self parentViewController];
+    while (parentViewController && ![parentViewController isKindOfClass:[ORKTaskViewController class]]) {
+        parentViewController = [parentViewController parentViewController];
     }
-    return nil;
+    return (ORKTaskViewController *)parentViewController;
 }
 
-- (void)showValidityAlertWithMessage:(NSString *)text {
-    
-    if (!text.length) {
+- (BOOL)showValidityAlertWithMessage:(NSString *)text {
+    return [self showValidityAlertWithTitle:ORKLocalizedString(@"RANGE_ALERT_TITLE", nil) message:text];
+}
+
+- (BOOL)showValidityAlertWithTitle:(NSString *)title message:(NSString *)message {
+    if (![title length] && ![message length]) {
         // No alert if the value is empty
-        return;
+        return NO;
     }
     if (_dismissing || ![self isViewLoaded] || !self.view.window) {
         // No alert if not in view chain.
-        return;
+        return NO;
     }
     
     if (_presentingAlert) {
-        return;
+        return NO;
     }
     
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:ORKLocalizedString(@"RANGE_ALERT_TITLE", nil)
-                                                                   message:text
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:title
+                                                                   message:message
                                                             preferredStyle:UIAlertControllerStyleAlert];
     
     [alert addAction:[UIAlertAction actionWithTitle:ORKLocalizedString(@"BUTTON_CANCEL", nil)
@@ -343,13 +540,18 @@
     [self presentViewController:alert animated:YES completion:^{
         _presentingAlert = NO;
     }];
+    
+    return YES;
 }
+
 
 #pragma mark - UIStateRestoring
 
 static NSString *const _ORKStepIdentifierRestoreKey = @"stepIdentifier";
 static NSString *const _ORKPresentedDateRestoreKey = @"presentedDate";
 static NSString *const _ORKOutputDirectoryKey = @"outputDirectory";
+static NSString *const _ORKParentReviewStepKey = @"parentReviewStep";
+static NSString *const _ORKAddedResultsKey = @"addedResults";
 
 - (void)encodeRestorableStateWithCoder:(NSCoder *)coder {
     [super encodeRestorableStateWithCoder:coder];
@@ -357,6 +559,8 @@ static NSString *const _ORKOutputDirectoryKey = @"outputDirectory";
     [coder encodeObject:_step.identifier forKey:_ORKStepIdentifierRestoreKey];
     [coder encodeObject:_presentedDate forKey:_ORKPresentedDateRestoreKey];
     [coder encodeObject:ORKBookmarkDataFromURL(_outputDirectory) forKey:_ORKOutputDirectoryKey];
+    [coder encodeObject:_parentReviewStep forKey:_ORKParentReviewStepKey];
+    [coder encodeObject:_addedResults forKey:_ORKAddedResultsKey];
 }
 
 - (void)decodeRestorableStateWithCoder:(NSCoder *)coder {
@@ -367,7 +571,7 @@ static NSString *const _ORKOutputDirectoryKey = @"outputDirectory";
     if (!self.step) {
         // Just logging to the console in this case, since this can happen during a taskVC restoration of a dynamic task.
         // The step VC will get restored, but then never added back to the hierarchy.
-        ORK_Log_Warning(@"%@",[NSString stringWithFormat:@"No step provided while restoring %@", NSStringFromClass([self class])]);
+        ORK_Log_Debug("%@",[NSString stringWithFormat:@"No step provided while restoring %@", NSStringFromClass([self class])]);
     }
     
     self.presentedDate = [coder decodeObjectOfClass:[NSDate class] forKey:_ORKPresentedDateRestoreKey];
@@ -378,6 +582,10 @@ static NSString *const _ORKOutputDirectoryKey = @"outputDirectory";
                                        reason:[NSString stringWithFormat:@"Attempted to restore step with identifier %@ but got step identifier %@", _restoredStepIdentifier, self.step.identifier]
                                      userInfo:nil];
     }
+    
+    self.parentReviewStep = [coder decodeObjectOfClass:[ORKReviewStep class] forKey:_ORKParentReviewStepKey];
+    
+    _addedResults = [coder decodeObjectOfClass:[NSArray class] forKey:_ORKAddedResultsKey];
 }
 
 + (UIViewController *)viewControllerWithRestorationIdentifierPath:(NSArray *)identifierComponents coder:(NSCoder *)coder {
@@ -385,6 +593,13 @@ static NSString *const _ORKOutputDirectoryKey = @"outputDirectory";
     viewController.restorationIdentifier = identifierComponents.lastObject;
     viewController.restorationClass = self;
     return viewController;
+}
+
+#pragma mark - Accessibility
+
+- (BOOL)accessibilityPerformEscape {
+    [self goBackward];
+    return YES;
 }
 
 @end

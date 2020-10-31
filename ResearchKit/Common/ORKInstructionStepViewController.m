@@ -30,17 +30,33 @@
 
 
 #import "ORKInstructionStepViewController.h"
-#import "ORKInstructionStep.h"
-#import "ORKSkin.h"
-#import "ORKHelpers.h"
-#import "ORKStepViewController_Internal.h"
-#import "ORKInstructionStepView.h"
-#import "ORKTaskViewController_Internal.h"
+#import "ORKLearnMoreStepViewController.h"
+
+#import "ORKNavigationContainerView_Internal.h"
+#import "ORKInstructionStepContainerView.h"
+#import "ORKStepView_Private.h"
 #import "ORKInstructionStepViewController_Internal.h"
-#import "ORKStepHeaderView_Internal.h"
+#import "ORKStepViewController_Internal.h"
+#import "ORKTaskViewController_Internal.h"
 
+#import "ORKInstructionStep.h"
 
-@implementation ORKInstructionStepViewController
+#import "ORKHelpers_Internal.h"
+#import "ORKSkin.h"
+
+#import "ORKBodyContainerView.h"
+#import "ORKStepContentView.h"
+#import "ORKStepContentView_Private.h"
+
+@class ORKBodyContainerView;
+
+@interface ORKInstructionStepViewController()<ORKStepViewLearnMoreItemDelegate, ORKBodyItemContainerViewDelegate>
+
+@end
+
+@implementation ORKInstructionStepViewController {
+    NSArray<NSLayoutConstraint *> *_constraints;
+}
 
 - (ORKInstructionStep *)instructionStep {
     return (ORKInstructionStep *)self.step;
@@ -53,22 +69,74 @@
     self.stepView = nil;
     
     if (self.step && [self isViewLoaded]) {
-        self.stepView = [[ORKInstructionStepView alloc] initWithFrame:self.view.bounds];
-        self.stepView.autoresizingMask = UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight;
+        self.stepView = [[ORKInstructionStepContainerView alloc] initWithInstructionStep:[self instructionStep]];
+        _stepView.delegate = self;
+        _stepView.stepContentView.bodyContainerView.bodyItemDelegate = self;
         [self.view addSubview:self.stepView];
-        
-        self.stepView.continueSkipContainer.continueButtonItem = self.continueButtonItem;
-        self.stepView.headerView.learnMoreButtonItem = self.learnMoreButtonItem;
-        self.stepView.continueSkipContainer.continueEnabled = YES;
-        
-        self.stepView.instructionStep = [self instructionStep];
+        [self setNavigationFooterView];
+        [self setupConstraints];
     }
 }
 
+- (void)setNavigationFooterView {
+    if (_stepView) {
+        _navigationFooterView = _stepView.navigationFooterView;
+        _navigationFooterView.continueButtonItem = self.continueButtonItem;
+        _navigationFooterView.continueEnabled = YES;
+        _navigationFooterView.hidden = self.isBeingReviewed;
+        _navigationFooterView.optional = [self instructionStep].isOptional;
+        _navigationFooterView.footnoteLabel.text = [self instructionStep].footnote;
+        [_navigationFooterView updateContinueAndSkipEnabled];
+    }
+}
+
+- (void)setupConstraints {
+    if (_constraints) {
+        [NSLayoutConstraint deactivateConstraints:_constraints];
+    }
+    self.stepView.translatesAutoresizingMaskIntoConstraints = NO;
+    _constraints = nil;
+    _constraints = @[
+                     [NSLayoutConstraint constraintWithItem:self.stepView
+                                                  attribute:NSLayoutAttributeTop
+                                                  relatedBy:NSLayoutRelationEqual
+                                                     toItem:self.view
+                                                  attribute:NSLayoutAttributeTop
+                                                 multiplier:1.0
+                                                   constant:0.0],
+                     [NSLayoutConstraint constraintWithItem:self.stepView
+                                                  attribute:NSLayoutAttributeLeft
+                                                  relatedBy:NSLayoutRelationEqual
+                                                     toItem:self.view
+                                                  attribute:NSLayoutAttributeLeft
+                                                 multiplier:1.0
+                                                   constant:0.0],
+                     [NSLayoutConstraint constraintWithItem:self.stepView
+                                                  attribute:NSLayoutAttributeRight
+                                                  relatedBy:NSLayoutRelationEqual
+                                                     toItem:self.view
+                                                  attribute:NSLayoutAttributeRight
+                                                 multiplier:1.0
+                                                   constant:0.0],
+                     [NSLayoutConstraint constraintWithItem:self.stepView
+                                                  attribute:NSLayoutAttributeBottom
+                                                  relatedBy:NSLayoutRelationEqual
+                                                     toItem:self.view
+                                                  attribute:NSLayoutAttributeBottom
+                                                 multiplier:1.0
+                                                   constant:0.0]
+                     ];
+    [NSLayoutConstraint activateConstraints:_constraints];
+}
+
 - (void)viewWillAppear:(BOOL)animated {
-    [super viewWillAppear:animated];
     
-    [self.taskViewController setRegisteredScrollView:_stepView];
+    if ([self.taskViewController isStepLastBeginningInstructionStep:self.step]) {
+        [self useAppropriateButtonTitleAsLastBeginningInstructionStep];
+    }
+    
+    [super viewWillAppear:animated];
+    [self.taskViewController.navigationBar setBarTintColor:self.view.backgroundColor];
 }
 
 - (void)viewDidLoad {
@@ -77,18 +145,42 @@
     [self stepDidChange];
 }
 
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    [_stepView setNeedsUpdateConstraints];
+    
+    if (self.step.buildInBodyItems == YES) {
+        UIView *lastVisibleBodyItem = [_stepView.stepContentView.bodyContainerView lastVisibleBodyItem];
+        [_stepView updateEffectViewStylingAndAnimate:NO checkCurrentValue:NO customView:lastVisibleBodyItem];
+    } else {
+        [_stepView updateEffectViewStylingAndAnimate:NO checkCurrentValue:NO];
+    }
+}
+
 - (void)useAppropriateButtonTitleAsLastBeginningInstructionStep {
-    self.internalContinueButtonItem.title = ORKLocalizedString(@"BUTTON_GET_STARTED",nil);
+    if (self.continueButtonTitle ==  nil) {
+        self.internalContinueButtonItem.title = ORKLocalizedString(@"BUTTON_GET_STARTED", nil);
+    }
 }
 
 - (void)setContinueButtonItem:(UIBarButtonItem *)continueButtonItem {
     [super setContinueButtonItem:continueButtonItem];
-    self.stepView.continueSkipContainer.continueButtonItem = continueButtonItem;
+    _navigationFooterView.continueButtonItem = continueButtonItem;
 }
 
-- (void)setLearnMoreButtonItem:(UIBarButtonItem *)learnMoreButtonItem {
-    [super setLearnMoreButtonItem:learnMoreButtonItem];
-    self.stepView.headerView.learnMoreButtonItem = learnMoreButtonItem;
+- (void)setSkipButtonItem:(UIBarButtonItem *)skipButtonItem {
+    [super setSkipButtonItem:skipButtonItem];
+
+    _navigationFooterView.skipButtonItem = self.skipButtonItem;
+    _navigationFooterView.skipEnabled = self.skipButtonItem ? YES : NO;
+}
+
+- (void)buildInNextBodyItem {
+    [_stepView.stepContentView.bodyContainerView updateBodyItemViews];
+    
+    UIView *lastView = [_stepView.stepContentView.bodyContainerView lastVisibleBodyItem];
+    [_stepView scrollToBodyItem:lastView];
+    [_stepView updateEffectViewStylingAndAnimate:NO checkCurrentValue:NO customView:lastView];
 }
 
 - (void)encodeRestorableStateWithCoder:(NSCoder *)coder {
@@ -97,6 +189,42 @@
 
 - (void)decodeRestorableStateWithCoder:(NSCoder *)coder {
     [super decodeRestorableStateWithCoder:coder];
+}
+
+#pragma mark - ORKStepContainerLearnMoreItemDelegate
+
+- (void)stepViewLearnMoreButtonPressed:(ORKLearnMoreInstructionStep *)learnMoreStep {
+    /*
+     In some cases we want to allow the parent application to intercept the learn more callback in learn more instruction steps. These
+     should get handled the same way as other learn more callbacks at the task level. If the app responds to this delegate, it get's
+     higher prioriy and it becomes the responsibility of the developer to handle all cases.
+     
+     If not implemented, default to showing the learnMore view controller for the the step.
+     */
+    if ([self.taskViewController.delegate respondsToSelector:@selector(taskViewController:learnMoreButtonPressedWithStep:forStepViewController:)]) {
+        [self.taskViewController.delegate taskViewController:self.taskViewController learnMoreButtonPressedWithStep:learnMoreStep forStepViewController:self];
+    } else {
+        UINavigationController *navigationViewController = [[UINavigationController alloc] initWithRootViewController: [self.taskViewController learnMoreViewControllerForStep:learnMoreStep]];
+        [navigationViewController.navigationBar setPrefersLargeTitles:NO];
+        [self presentViewController:navigationViewController
+                           animated:YES
+                         completion:nil];
+    }
+}
+
+- (void)goForward {
+    if (([self instructionStep].buildInBodyItems == YES) && ([_stepView.stepContentView.bodyContainerView hasShownAllBodyItem] == NO)) {
+        [self buildInNextBodyItem];
+    } else {
+        [super goForward];
+    }
+}
+
+- (void)bodyContainerViewDidLoadBodyItems {
+    if ([self.stepView buildInBodyItems] == YES) {
+        UIView *lastVisibleBodyItem = [_stepView.stepContentView.bodyContainerView lastVisibleBodyItem];
+        [_stepView updateEffectViewStylingAndAnimate:NO checkCurrentValue:NO customView:lastVisibleBodyItem];
+    }
 }
 
 @end

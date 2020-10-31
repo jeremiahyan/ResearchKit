@@ -30,7 +30,8 @@
 
 
 #import "ORKLabel.h"
-#import "ORKHelpers.h"
+
+#import "ORKHelpers_Internal.h"
 
 
 @implementation ORKLabel
@@ -56,6 +57,7 @@
                                              selector:@selector(updateAppearance)
                                                  name:UIContentSizeCategoryDidChangeNotification
                                                object:nil];
+    self.font = [[self class] defaultFont];
     [self updateAppearance];
 }
 
@@ -65,7 +67,6 @@
 }
 
 - (void)updateAppearance {
-    self.font = [[self class] defaultFont];
     [self invalidateIntrinsicContentSize];
 }
 

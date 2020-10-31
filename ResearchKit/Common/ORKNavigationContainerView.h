@@ -29,24 +29,35 @@
  */
 
 
-#import <UIKit/UIKit.h>
-#import <ResearchKit/ResearchKit_Private.h>
-
+@import UIKit;
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class ORKBorderedButton;
 @interface ORKNavigationContainerView : UIView
 
-@property (nonatomic, strong, nullable) UIBarButtonItem *skipButtonItem;
 @property (nonatomic, strong, nullable) UIBarButtonItem *continueButtonItem;
+@property (nonatomic, strong, nullable) UIBarButtonItem *skipButtonItem;
 
 @property (nonatomic, assign) BOOL continueEnabled;
 @property (nonatomic, assign) BOOL neverHasContinueButton;
 
+@property (nonatomic, assign) BOOL skipEnabled;
+
 @property (nonatomic, assign) CGFloat topMargin;
 @property (nonatomic, assign) CGFloat bottomMargin;
 
+@property (nonatomic, assign) BOOL useExtendedPadding;
+
 - (BOOL)hasContinueOrSkip;
+- (BOOL)wasContinueOrSkipButtonJustPressed;
+- (void)removeStyling;
+
+- (CGFloat)effectViewOpacity;
+- (void)setStylingOpactity:(CGFloat)opacity animated:(BOOL)animated;
+
+- (void)showActivityIndicator:(BOOL)showActivityIndicator;
+- (void)flattenIfNeeded;
 
 @end
 

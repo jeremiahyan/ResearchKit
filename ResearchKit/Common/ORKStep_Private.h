@@ -28,8 +28,11 @@
  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
 #import <ResearchKit/ORKStep.h>
 
+
+NS_ASSUME_NONNULL_BEGIN
 
 @interface ORKStep ()
 
@@ -46,10 +49,9 @@
  */
 + (Class)stepViewControllerClass;
 
-@property (nonatomic, assign) BOOL shouldTintImages;
+- (Class)stepViewControllerClass;
 
-// Override whether to show progress for this step in the default task.
-@property (nonatomic, assign, readonly) BOOL showsProgress;
+@property (nonatomic, assign) BOOL shouldTintImages;
 
 // Whether to allow navigation back from this step.
 @property (nonatomic, assign, readonly) BOOL allowsBackNavigation;
@@ -58,3 +60,4 @@
 
 @end
 
+NS_ASSUME_NONNULL_END

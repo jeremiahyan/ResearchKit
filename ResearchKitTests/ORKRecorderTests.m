@@ -29,20 +29,11 @@
  */
 
 
-#import <XCTest/XCTest.h>
-#import <ResearchKit/ResearchKit.h>
-#import <CoreLocation/CoreLocation.h>
-#import "ORKLocationRecorder.h"
-#import "ORKAccelerometerRecorder.h"
-#import "ORKDeviceMotionRecorder.h"
-#import "ORKPedometerRecorder.h"
-#import "ORKTouchRecorder.h"
-#import "ORKAudioRecorder.h"
-#import "ORKHealthQuantityTypeRecorder.h"
-#import <CoreMotion/CoreMotion.h>
-#import "ORKHelpers.h"
-#import "ORKRecorder_Internal.h"
-#import "ORKRecorder_Private.h"
+@import XCTest;
+@import ResearchKit.Private;
+
+@import CoreLocation;
+@import CoreMotion;
 
 
 @interface ORKMockLocationManager : CLLocationManager
@@ -109,6 +100,14 @@
     CMAccelerometerHandler _accelerometerHandler;
 }
 
+- (void)startAccelerometerUpdates {
+    // override implementation and do nothing, fake data will be added via the inject method
+}
+
+- (void)stopAccelerometerUpdates {
+    // override implementation and do nothing
+}
+
 - (void)injectMotion:(CMDeviceMotion *)motion {
     _motionHandler(motion, nil);
 }
@@ -119,12 +118,10 @@
 
 - (void)startDeviceMotionUpdatesToQueue:(NSOperationQueue *)queue withHandler:(CMDeviceMotionHandler)handler {
     _motionHandler = handler;
-    [super startDeviceMotionUpdatesToQueue:queue withHandler:handler];
 }
 
 - (void)startAccelerometerUpdatesToQueue:(NSOperationQueue *)queue withHandler:(CMAccelerometerHandler)handler {
     _accelerometerHandler = handler;
-    [super startAccelerometerUpdatesToQueue:queue withHandler:handler];
 }
 
 - (BOOL)isAccelerometerAvailable {
@@ -313,7 +310,7 @@
 
 
 static BOOL ork_doubleEqual(double x, double y) {
-    static double K = 1;
+    static double K = 2;
     return (fabs(x-y) < K * DBL_EPSILON * fabs(x+y) || fabs(x-y) < DBL_MIN);
 }
 
@@ -345,7 +342,7 @@ static const NSInteger kNumberOfSamples = 5;
         [[NSFileManager defaultManager] createDirectoryAtPath:_outputPath withIntermediateDirectories:YES attributes:nil error:&error];
         
         if (error) {
-            NSLog(@"Failed to create directory %@", error);
+            ORK_Log_Error("Failed to create directory %@", error);
         }
     }
     
@@ -359,13 +356,13 @@ static const NSInteger kNumberOfSamples = 5;
 }
 
 - (void)recorder:(ORKRecorder *)recorder didCompleteWithResult:(ORKResult *)result {
-     NSLog(@"didCompleteWithResult: %@", result);
+     ORK_Log_Debug("didCompleteWithResult: %@", result);
     _recorder = recorder;
     _result = result;
 }
 
 - (void)recorder:(ORKRecorder *)recorder didFailWithError:(NSError *)error {
-    NSLog(@"didFailWithError: %@", error);
+    ORK_Log_Error("didFailWithError: %@", error);
     _recorder = nil;
     _result = nil;
 }
@@ -391,7 +388,7 @@ static const NSInteger kNumberOfSamples = 5;
     XCTAssertNil(error, @"");
     XCTAssertNotNil(dict, @"");
     
-    NSArray* items = dict[@"items"];
+    NSArray *items = dict[@"items"];
     XCTAssertEqual(items.count, kNumberOfSamples, @"");
     
     _items = items;
@@ -458,19 +455,31 @@ static const NSInteger kNumberOfSamples = 5;
     XCTAssertTrue([recorder isKindOfClass:recorderClass], @"");
     XCTAssertTrue([recorder.identifier isEqualToString:recorderConfiguration.identifier], @"");
     
-    recorder = [[ORKMockAccelerometerRecorder alloc] initWithIdentifier:@"accelerometer" frequency:recorder.frequency step:recorder.step outputDirectory:recorder.outputDirectory];
-    recorder.delegate = self;
-    ORKMockMotionManager *manager = [ORKMockMotionManager new];
-    [(ORKMockAccelerometerRecorder*)recorder setMockManager:manager];
+    ORKMockAccelerometerRecorder *newRecorder = [[ORKMockAccelerometerRecorder alloc] initWithIdentifier:@"accelerometer" frequency:recorder.frequency step:recorder.step outputDirectory:recorder.outputDirectory];
     
-    [recorder start];
+    newRecorder.delegate = self;
+    ORKMockMotionManager *manager = [ORKMockMotionManager new];
+    [newRecorder setMockManager:manager];
     
     ORKMockAccelerometerData *data = [ORKMockAccelerometerData new];
+    
+    XCTestExpectation *expectation = [self expectationWithDescription:@"Dummy expectation"];
+    
+    [newRecorder start];
+    
     for (NSInteger i = 0; i < kNumberOfSamples; i++) {
         [manager injectAccelerometerData:data];
     }
     
-    [recorder stop];
+    [newRecorder stop];
+    
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        XCTAssert(self->_result!=nil, @"Data source has populated array after initializing");
+        [expectation fulfill];
+    });
+    
+    
+    [self waitForExpectationsWithTimeout:20.0 handler:nil];
     [self checkResult];
     
     for (NSDictionary *sample in _items) {

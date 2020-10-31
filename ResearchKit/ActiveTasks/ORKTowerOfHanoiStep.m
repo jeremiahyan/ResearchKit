@@ -30,8 +30,10 @@
 
 
 #import "ORKTowerOfHanoiStep.h"
+
 #import "ORKTowerOfHanoiStepViewController.h"
-#import "ORKHelpers.h"
+
+#import "ORKHelpers_Internal.h"
 
 
 static const NSUInteger MaximumNumberOfDisks = 8;
@@ -45,22 +47,10 @@ static const NSUInteger MaximumNumberOfDisks = 8;
 - (instancetype)initWithIdentifier:(NSString *)identifier {
     self = [super initWithIdentifier:identifier];
     if (self) {
-        [self commonInit];
+        self.optional = YES;
+        self.numberOfDisks = 3;
     }
     return self;
-}
-
-- (instancetype)init {
-    self = [super init];
-    if (self) {
-        [self commonInit];
-    }
-    return self;
-}
-
-- (void)commonInit {
-    self.optional = YES;
-    self.numberOfDisks = 3;
 }
 
 + (BOOL)supportsSecureCoding {
@@ -97,7 +87,7 @@ static const NSUInteger MaximumNumberOfDisks = 8;
 - (void)validateParameters {
     [super validateParameters];
     if (self.numberOfDisks > MaximumNumberOfDisks) {
-        ORK_Log_Warning(@"Having a large number of disks provides a poor user experience, consider reducing the number below %@.", @(MaximumNumberOfDisks));
+        ORK_Log_Info("Having a large number of disks provides a poor user experience, consider reducing the number below %@.", @(MaximumNumberOfDisks));
     }
 }
 

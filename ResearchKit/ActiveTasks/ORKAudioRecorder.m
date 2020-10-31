@@ -30,10 +30,10 @@
 
 
 #import "ORKAudioRecorder.h"
-#import "ORKHelpers.h"
+
 #import "ORKRecorder_Internal.h"
-#import "ORKRecorder_Private.h"
-#import "ORKDefines_Private.h"
+
+#import "ORKHelpers_Internal.h"
 
 
 @interface ORKAudioRecorder ()
@@ -42,13 +42,15 @@
 
 @property (nonatomic, copy) NSDictionary *recorderSettings;
 
+@property (nonatomic, copy) NSString *savedSessionCategory;
+
 @end
 
 
 @implementation ORKAudioRecorder
 
 - (void)dealloc {
-    ORK_Log_Debug(@"Remove audiorecorder %p", self);
+    ORK_Log_Debug("Remove audiorecorder %p", self);
     [_audioRecorder stop];
     _audioRecorder = nil;
 }
@@ -79,6 +81,16 @@
     return self;
 }
 
+- (void)restoreSavedAudioSessionCategory {
+    if (_savedSessionCategory) {
+        NSError *error;
+        if (![[AVAudioSession sharedInstance] setCategory:_savedSessionCategory error:&error]) {
+            ORK_Log_Error("Failed to restore the audio session category: %@", [error localizedDescription]);
+        }
+        _savedSessionCategory = nil;
+    }
+}
+
 - (void)start {
     if (self.outputDirectory == nil) {
         @throw [NSException exceptionWithName:NSDestinationInvalidException reason:@"audioRecorder requires an output directory" userInfo:nil];
@@ -95,12 +107,13 @@
         
         
         AVAudioSession *audioSession = [AVAudioSession sharedInstance];
+        _savedSessionCategory = audioSession.category;
         if (![audioSession setCategory:AVAudioSessionCategoryPlayAndRecord error:&error]) {
             [self finishRecordingWithError:error];
             return;
         }
         
-        ORK_Log_Debug(@"Create audioRecorder %p", self);
+        ORK_Log_Debug("Create audioRecorder %p", self);
         _audioRecorder = [[AVAudioRecorder alloc]
                           initWithURL:soundFileURL
                           settings:self.recorderSettings
@@ -191,12 +204,13 @@
         
         [self applyFileProtection:ORKFileProtectionComplete toFileAtURL:[self recordingFileURL]];
 #endif
+        [self restoreSavedAudioSessionCategory];
     }
 }
 
 - (void)finishRecordingWithError:(NSError *)error {
     [self doStopRecording];
-    
+
     [super finishRecordingWithError:error];
 }
 
@@ -231,29 +245,29 @@
     return [[self recordingDirectoryURL] URLByAppendingPathComponent:[NSString stringWithFormat:@"%@.%@", [self logName], [self extension]]];
 }
 
-- (BOOL)recreateFileWithError:(NSError * __autoreleasing *)error {
+- (BOOL)recreateFileWithError:(NSError **)errorOut {
     NSURL *url = [self recordingFileURL];
     if (!url) {
-        if (error) {
-            *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileWriteInvalidFileNameError userInfo:@{NSLocalizedDescriptionKey:ORKLocalizedString(@"ERROR_RECORDER_NO_OUTPUT_DIRECTORY", nil)}];
+        if (errorOut != NULL) {
+            *errorOut = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileWriteInvalidFileNameError userInfo:@{NSLocalizedDescriptionKey:ORKLocalizedString(@"ERROR_RECORDER_NO_OUTPUT_DIRECTORY", nil)}];
         }
         return NO;
     }
     
     NSFileManager *fileManager = [NSFileManager defaultManager];
     
-    if (![fileManager createDirectoryAtURL:url withIntermediateDirectories:YES attributes:nil error:error]) {
+    if (![fileManager createDirectoryAtURL:url withIntermediateDirectories:YES attributes:nil error:errorOut]) {
         return NO;
     }
     
     if ([fileManager fileExistsAtPath:[url path]]) {
-        if (![fileManager removeItemAtPath:[url path] error:error]) {
+        if (![fileManager removeItemAtPath:[url path] error:errorOut]) {
             return NO;
         }
     }
     
     [fileManager createFileAtPath:[url path] contents:nil attributes:nil];
-    [fileManager setAttributes:@{NSFileProtectionKey : ORKFileProtectionFromMode(ORKFileProtectionCompleteUnlessOpen)} ofItemAtPath:[url path] error:error];
+    [fileManager setAttributes:@{NSFileProtectionKey: ORKFileProtectionFromMode(ORKFileProtectionCompleteUnlessOpen)} ofItemAtPath:[url path] error:errorOut];
     return YES;
 }
 

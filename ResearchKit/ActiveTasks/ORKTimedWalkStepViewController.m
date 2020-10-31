@@ -30,12 +30,21 @@
 
 
 #import "ORKTimedWalkStepViewController.h"
-#import "ORKTimedWalkContentView.h"
-#import "ORKTimedWalkStep.h"
-#import "ORKActiveStepViewController_Internal.h"
-#import "ORKNavigationContainerView_Internal.h"
-#import "ORKStepViewController_Internal.h"
+
+#import "ORKActiveStepTimer.h"
 #import "ORKActiveStepView.h"
+#import "ORKStepContainerView_Private.h"
+#import "ORKNavigationContainerView_Internal.h"
+#import "ORKTimedWalkContentView.h"
+
+#import "ORKActiveStepViewController_Internal.h"
+#import "ORKStepViewController_Internal.h"
+
+#import "ORKCollectionResult.h"
+#import "ORKTimedWalkResult.h"
+#import "ORKTimedWalkStep.h"
+
+#import "ORKHelpers_Internal.h"
 
 
 @interface ORKTimedWalkStepViewController ()
@@ -67,17 +76,16 @@
     [super initializeInternalButtonItems];
     
     self.internalDoneButtonItem = nil;
-    self.continueButtonTitle = ORKLocalizedString(@"BUTTON_DONE", nil);
+    self.continueButtonTitle = ORKLocalizedString(@"BUTTON_NEXT", nil);
 }
 
 - (void)viewDidLoad {
     [super viewDidLoad];
     
     self.timedWalkContentView = [ORKTimedWalkContentView new];
-    self.timedWalkContentView.image = [self timedWalkStep].image;
     self.activeStepView.activeCustomView = self.timedWalkContentView;
-    self.activeStepView.stepViewFillsAvailableSpace = YES;
-    self.activeStepView.continueSkipContainer.continueEnabled = YES;
+    self.activeStepView.customContentFillsAvailableSpace = YES;
+    _navigationFooterView.continueEnabled = YES;
     
     self.timerUpdateInterval = 0.1f;
 }

@@ -29,13 +29,13 @@
  */
 
 
-#import <UIKit/UIKit.h>
-#import <ResearchKit/ORKQuestionStep.h>
+@import UIKit;
 #import "ORKTableViewCell.h"
 
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class ORKQuestionStep;
 @class ORKSurveyAnswerCell;
 
 @protocol ORKSurveyAnswerCellDelegate
@@ -43,6 +43,7 @@ NS_ASSUME_NONNULL_BEGIN
 @required
 - (void)answerCell:(ORKSurveyAnswerCell *)cell answerDidChangeTo:(id)answer dueUserAction:(BOOL)dueUserAction;
 - (void)answerCell:(ORKSurveyAnswerCell *)cell invalidInputAlertWithMessage:(NSString *)input;
+- (void)answerCell:(ORKSurveyAnswerCell *)cell invalidInputAlertWithTitle:(NSString *)title message:(NSString *)message;
 
 @end
 
@@ -86,6 +87,11 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)shouldDisplayWithSeparators;
 
 - (void)showValidityAlertWithMessage:(nullable NSString *)text;
+
+- (void)showValidityAlertWithTitle:(NSString *)title message:(NSString *)message;
+
+// Get full width layout for some subclass cells 
++ (NSLayoutConstraint *)fullWidthLayoutConstraint:(UIView *)view;
 
 @end
 

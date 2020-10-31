@@ -29,7 +29,8 @@
  */
 
 
-#import <ResearchKit/ResearchKit_Private.h>
+#import <ResearchKit/ORKQuestionStepViewController.h>
+#import <ResearchKit/ORKCustomStepView.h>
 
 
 NS_ASSUME_NONNULL_BEGIN
@@ -44,6 +45,11 @@ NS_ASSUME_NONNULL_BEGIN
  constraints which determine the vertical space required.
  */
 @property (nonatomic, strong, nullable) ORKQuestionStepCustomView *customQuestionView;
+
+/**
+ Set the step answer.
+ */
+- (void)setAnswer:(id)answer;
 
 @end
 

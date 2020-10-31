@@ -29,11 +29,10 @@
  */
 
 
-#import <ResearchKit/ResearchKit_Private.h>
+#import <ResearchKit/ORKOrderedTask.h>
 
 
 NS_ASSUME_NONNULL_BEGIN
-
 
 @class ORKCompletionStep, ORKStep;
 
@@ -42,6 +41,7 @@ FOUNDATION_EXPORT NSString *const ORKInstruction0StepIdentifier;
 FOUNDATION_EXPORT NSString *const ORKInstruction1StepIdentifier;
 FOUNDATION_EXPORT NSString *const ORKCountdownStepIdentifier;
 FOUNDATION_EXPORT NSString *const ORKAudioStepIdentifier;
+FOUNDATION_EXPORT NSString *const ORKAudioTooLoudStepIdentifier;
 FOUNDATION_EXPORT NSString *const ORKTappingStepIdentifier;
 FOUNDATION_EXPORT NSString *const ORKConclusionStepIdentifier;
 FOUNDATION_EXPORT NSString *const ORKFitnessWalkStepIdentifier;
@@ -50,6 +50,7 @@ FOUNDATION_EXPORT NSString *const ORKShortWalkOutboundStepIdentifier;
 FOUNDATION_EXPORT NSString *const ORKShortWalkReturnStepIdentifier;
 FOUNDATION_EXPORT NSString *const ORKShortWalkRestStepIdentifier;
 FOUNDATION_EXPORT NSString *const ORKSpatialSpanMemoryStepIdentifier;
+FOUNDATION_EXPORT NSString *const ORKStroopStepIdentifier;
 FOUNDATION_EXPORT NSString *const ORKToneAudiometryPracticeStepIdentifier;
 FOUNDATION_EXPORT NSString *const ORKToneAudiometryStepIdentifier;
 FOUNDATION_EXPORT NSString *const ORKReactionTimeStepIdentifier;
@@ -64,11 +65,12 @@ FOUNDATION_EXPORT NSString *const ORKDeviceMotionRecorderIdentifier;
 FOUNDATION_EXPORT NSString *const ORKLocationRecorderIdentifier;
 FOUNDATION_EXPORT NSString *const ORKHeartRateRecorderIdentifier;
 
-FOUNDATION_EXPORT void ORKStepArrayAddStep(NSMutableArray *array, ORKStep *step);
+FOUNDATION_EXPORT void ORKStepArrayAddStep(NSMutableArray<ORKStep *> *array, ORKStep *step);
 
-@interface ORKOrderedTask ()
+@interface ORKOrderedTask (ORKMakeTaskUtilities)
 
 + (ORKCompletionStep *)makeCompletionStep;
++ (NSDateComponentsFormatter *)textTimeFormatter;
 
 @end
 

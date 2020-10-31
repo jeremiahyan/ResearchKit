@@ -29,8 +29,7 @@
  */
 
 
-#import "ORKVerticalContainerView.h"
-#import "ORKSkin.h"
+#import <ResearchKit/ORKVerticalContainerView.h>
 
 
 NS_ASSUME_NONNULL_BEGIN
@@ -38,6 +37,8 @@ NS_ASSUME_NONNULL_BEGIN
 @interface ORKVerticalContainerView ()
 
 - (void)updateConstraintConstantsForWindow:(UIWindow *)window;
+
+@property (nonatomic, assign) BOOL scrollContainerShouldCollapseNavbar;
 
 @end
 

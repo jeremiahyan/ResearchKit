@@ -29,16 +29,17 @@
  */
 
 
-#import "ORKStepHeaderView.h"
-#import "ORKHeadlineLabel.h"
-#import "ORKSubheadlineLabel.h"
-#import "ORKTextButton.h"
+#import <ResearchKit/ORKStepHeaderView.h>
+#import <ResearchKit/ORKHeadlineLabel.h>
+#import <ResearchKit/ORKTextButton.h>
+#import <ResearchKit/ORKSubheadlineLabel.h>
 
 
 NS_ASSUME_NONNULL_BEGIN
 
 @interface ORKStepHeaderView ()
 
+@property (nonatomic, strong, readonly) UIImageView *iconImageView;
 @property (nonatomic, strong, readonly) ORKHeadlineLabel *captionLabel;
 @property (nonatomic, strong, readonly) ORKTextButton *learnMoreButton;
 @property (nonatomic, strong, readonly) ORKSubheadlineLabel *instructionLabel;

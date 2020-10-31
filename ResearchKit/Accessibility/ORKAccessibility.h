@@ -30,6 +30,6 @@
 
 
 // Shared header for accessibility functionality.
-#import "UIView+ORKAccessibility.h"
-#import "ORKAccessibilityFunctions.h"
-#import "ORKLineGraphAccessibilityElement.h"
+#import <ResearchKit/ORKAccessibilityFunctions.h>
+#import <ResearchKit/ORKGraphChartAccessibilityElement.h>
+#import <ResearchKit/UIView+ORKAccessibility.h>

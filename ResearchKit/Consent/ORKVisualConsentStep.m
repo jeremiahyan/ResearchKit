@@ -30,10 +30,13 @@
 
 
 #import "ORKVisualConsentStep.h"
-#import "ORKStep_Private.h"
-#import "ORKHelpers.h"
-#import "ORKConsentDocument_Internal.h"
+
 #import "ORKVisualConsentStepViewController.h"
+
+#import "ORKConsentDocument_Internal.h"
+#import "ORKStep_Private.h"
+
+#import "ORKHelpers_Internal.h"
 
 
 @implementation ORKVisualConsentStep
@@ -46,6 +49,7 @@
     self = [super initWithIdentifier:identifier];
     if (self) {
         self.consentDocument = consentDocument;
+        self.showsProgress = NO;
     }
     return self;
 }
@@ -82,11 +86,7 @@
 }
 
 - (NSUInteger)hash {
-    return [super hash] ^ [self.consentDocument hash];
-}
-
-- (BOOL)showsProgress {
-    return NO;
+    return super.hash ^ self.consentDocument.hash;
 }
 
 @end

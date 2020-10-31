@@ -30,9 +30,12 @@
 
 
 #import "ORKActiveStepTimer.h"
+
+#import "ORKHelpers_Internal.h"
+
+@import UIKit;
 #include <mach/mach.h>
 #include <mach/mach_time.h>
-#import <UIKit/UIKit.h>
 
 
 static NSTimeInterval timeIntervalFromMachTime(uint64_t delta) {
@@ -43,6 +46,7 @@ static NSTimeInterval timeIntervalFromMachTime(uint64_t delta) {
     uint64_t elapsedNano = delta * sTimebaseInfo.numer / sTimebaseInfo.denom;
     return elapsedNano * 1.0 / NSEC_PER_SEC;
 }
+
 
 @implementation ORKActiveStepTimer {
     uint64_t _startTime;
@@ -197,9 +201,9 @@ static NSTimeInterval timeIntervalFromMachTime(uint64_t delta) {
         assert(0);
         return;
     }
-    __weak typeof(self) weakSelf = self;
+    ORKWeakTypeOf(self) weakSelf = self;
     dispatch_source_set_event_handler(_timer, ^{
-        typeof(self) strongSelf = weakSelf;
+        ORKStrongTypeOf(self) strongSelf = weakSelf;
         [strongSelf hiqueue_event];
     });
     

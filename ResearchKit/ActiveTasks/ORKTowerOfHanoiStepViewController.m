@@ -30,11 +30,20 @@
 
 
 #import "ORKTowerOfHanoiStepViewController.h"
-#import "ORKActiveStepViewController_Internal.h"
-#import "ORKTowerOfHanoiTowerView.h"
+
 #import "ORKActiveStepView.h"
-#import "ORKTowerOfHanoiTower.h"
+#import "ORKCustomStepView_Internal.h"
+#import "ORKTowerOfHanoiTowerView.h"
+
+#import "ORKActiveStepViewController_Internal.h"
+#import "ORKStepViewController_Internal.h"
+
+#import "ORKCollectionResult_Private.h"
+#import "ORKTowerOfHanoiResult.h"
 #import "ORKTowerOfHanoiStep.h"
+#import "ORKTowerOfHanoiTower.h"
+
+#import "ORKHelpers_Internal.h"
 #import "ORKSkin.h"
 
 
@@ -66,16 +75,13 @@ static const NSUInteger NumberOfTowers = 3;
     _towerOfHanoiCustomView = [ORKActiveStepCustomView new];
     _towerOfHanoiCustomView.translatesAutoresizingMaskIntoConstraints = NO;
     self.activeStepView.activeCustomView = _towerOfHanoiCustomView;
-    self.activeStepView.minimumStepHeaderHeight = ORKGetMetricForWindow(ORKScreenMetricMinimumStepHeaderHeightForTowerOfHanoiPuzzle, self.view.window);
     
     [self setUpTowers];
     [self setUpTowerViews];
     [self reloadData];
-    NSString *title = ORKLocalizedString(@"TOWER_OF_HANOI_TASK_ACTIVE_STEP_INTRO_TEXT",nil);
-    NSString *text = ORKLocalizedString(@"TOWER_OF_HANOI_TASK_INTRO_TEXT",nil);
-    NSString *skip = ORKLocalizedString(@"TOWER_OF_HANOI_TASK_ACTIVE_STEP_SKIP_BUTTON_TITLE", nil);
+    NSString *title = ORKLocalizedString(@"TOWER_OF_HANOI_TASK_ACTIVE_STEP_INTRO_TEXT", nil);
+    NSString *text = ORKLocalizedString(@"TOWER_OF_HANOI_TASK_INTRO_TEXT", nil);
     [self.activeStepView updateTitle:title text:text];
-    [self setSkipButtonTitle:skip];
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
@@ -116,7 +122,7 @@ static const NSUInteger NumberOfTowers = 3;
     if (_firstMoveDate != nil) {
         result.startDate = _firstMoveDate;
     }
-    stepResult.results = @[result];
+    stepResult.results = [self.addedResults arrayByAddingObject:result] ? : @[result];
     return stepResult;
 }
 
@@ -180,8 +186,8 @@ static const NSUInteger NumberOfTowers = 3;
 - (void)updateTitleText {
     NSString *moves = ORKLocalizedStringFromNumber(@(self.moves.count));
     NSString *time = [self.dateComponentsFormatter stringFromTimeInterval:_secondsElapsed];
-    NSString *title = ORKLocalizedString(@"TOWER_OF_HANOI_TASK_ACTIVE_STEP_INTRO_TEXT",nil);
-    NSString *text = [NSString stringWithFormat:ORKLocalizedString(@"TOWER_OF_HANOI_TASK_ACTIVE_STEP_PROGRESS_TEXT", nil), moves, time];
+    NSString *title = ORKLocalizedString(@"TOWER_OF_HANOI_TASK_ACTIVE_STEP_INTRO_TEXT", nil);
+    NSString *text = [NSString localizedStringWithFormat:ORKLocalizedString(@"TOWER_OF_HANOI_TASK_ACTIVE_STEP_PROGRESS_TEXT", nil), moves, time];
     [self.activeStepView updateTitle:title text:text];
 }
 
@@ -268,7 +274,7 @@ static const NSUInteger NumberOfTowers = 3;
 
 - (NSArray *)compactConstraints {
     CGFloat compactWidth = ([[UIScreen mainScreen]bounds].size.height - (3 * 8)) / 3;
-    NSDictionary *views = @{ @"A" : _towerViews[0], @"B" : _towerViews[1], @"C" : _towerViews[2]};
+    NSDictionary *views = @{ @"A": _towerViews[0], @"B": _towerViews[1], @"C": _towerViews[2]};
     NSMutableArray *newConstraints = [NSMutableArray new];
 
     [newConstraints addObjectsFromArray:
@@ -312,7 +318,7 @@ static const NSUInteger NumberOfTowers = 3;
 }
 
 - (NSArray *)regularConstraints {
-    NSDictionary *views = @{ @"A" : _towerViews[0], @"B" : _towerViews[1], @"C" : _towerViews[2]};
+    NSDictionary *views = @{ @"A": _towerViews[0], @"B": _towerViews[1], @"C": _towerViews[2]};
     NSMutableArray *newConstraints = [NSMutableArray new];
     
     [newConstraints addObjectsFromArray:

@@ -29,21 +29,23 @@
  */
 
 
-#import "ORKDefines.h"
-#import "ORKHelpers.h"
+#import <ResearchKit/ORKDefines.h>
+#import <ResearchKit/ORKHelpers_Internal.h>
 
+
+NS_ASSUME_NONNULL_BEGIN
 
 @class ORKScaleSlider;
 
 // Used to properly format values from the ORKScaleSlider.
-ORK_EXTERN NSString *ORKAccessibilityFormatScaleSliderValue(CGFloat value, ORKScaleSlider *slider);
-ORK_EXTERN NSString *ORKAccessibilityFormatContinuousScaleSliderValue(CGFloat value, ORKScaleSlider *slider);
+ORK_EXTERN NSString * _Nullable ORKAccessibilityFormatScaleSliderValue(CGFloat value, ORKScaleSlider *slider);
+ORK_EXTERN NSString * _Nullable ORKAccessibilityFormatContinuousScaleSliderValue(CGFloat value, ORKScaleSlider *slider);
 
 // Performs a block on the main thread after a delay. If Voice Over is not running, the block is performed immediately.
 ORK_EXTERN void ORKAccessibilityPerformBlockAfterDelay(NSTimeInterval delay, void(^block)(void));
 
 // Convenience for posting an accessibility notification after a delay.
-ORK_INLINE void ORKAccessibilityPostNotificationAfterDelay(UIAccessibilityNotifications notification, id argument, NSTimeInterval delay) {
+ORK_INLINE void ORKAccessibilityPostNotificationAfterDelay(UIAccessibilityNotifications notification, _Nullable id argument, NSTimeInterval delay) {
     ORKAccessibilityPerformBlockAfterDelay(delay, ^{
         UIAccessibilityPostNotification(notification, argument);
     });
@@ -52,3 +54,5 @@ ORK_INLINE void ORKAccessibilityPostNotificationAfterDelay(UIAccessibilityNotifi
 // Creates a string suitable for Voice Over by joining the variables with ", " and avoiding nil and empty strings.
 #define ORKAccessibilityStringForVariables(...) _ORKAccessibilityStringForVariables(ORK_NARG(__VA_ARGS__),  ##__VA_ARGS__)
 ORK_EXTERN NSString *_ORKAccessibilityStringForVariables(NSInteger numParameters, NSString *baseString, ...);
+
+NS_ASSUME_NONNULL_END

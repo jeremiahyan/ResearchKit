@@ -30,17 +30,21 @@
 
 
 #import "ORKImageCaptureView.h"
+
 #import "ORKImageCaptureCameraPreviewView.h"
 #import "ORKNavigationContainerView_Internal.h"
-#import "ORKHelpers.h"
-#import "ORKSkin.h"
 #import "ORKStepHeaderView_Internal.h"
+
+#import "ORKImageCaptureStep.h"
+
+#import "ORKHelpers_Internal.h"
+#import "ORKSkin.h"
 
 
 @implementation ORKImageCaptureView {
     ORKStepHeaderView *_headerView;
     ORKImageCaptureCameraPreviewView *_previewView;
-    ORKNavigationContainerView *_continueSkipContainer;
+    ORKNavigationContainerView *_navigationFooterView;
     UIBarButtonItem *_captureButtonItem;
     UIBarButtonItem *_recaptureButtonItem;
     NSMutableArray *_variableConstraints;
@@ -63,15 +67,15 @@
         _captureButtonItem = [[UIBarButtonItem alloc] initWithTitle:ORKLocalizedString(@"CAPTURE_BUTTON_CAPTURE_IMAGE", nil) style:UIBarButtonItemStylePlain target:self action:@selector(capturePressed)];
         _recaptureButtonItem = [[UIBarButtonItem alloc] initWithTitle:ORKLocalizedString(@"CAPTURE_BUTTON_RECAPTURE_IMAGE", nil) style:UIBarButtonItemStylePlain target:self action:@selector(retakePressed)];
         
-        _continueSkipContainer = [ORKNavigationContainerView new];
-        _continueSkipContainer.continueEnabled = YES;
-        _continueSkipContainer.topMargin = 5;
-        _continueSkipContainer.bottomMargin = 15;
-        _continueSkipContainer.optional = YES;
-        _continueSkipContainer.backgroundColor = ORKColor(ORKBackgroundColorKey);
-        [self addSubview:_continueSkipContainer];
+        _navigationFooterView = [ORKNavigationContainerView new];
+        _navigationFooterView.continueEnabled = YES;
+        _navigationFooterView.topMargin = 5;
+        _navigationFooterView.bottomMargin = 15;
+        _navigationFooterView.optional = YES;
+        _navigationFooterView.backgroundColor = ORKColor(ORKNavigationContainerColorKey);
+        [self addSubview:_navigationFooterView];
         
-        NSDictionary *dictionary = NSDictionaryOfVariableBindings(self, _previewView, _continueSkipContainer, _headerView);
+        NSDictionary *dictionary = NSDictionaryOfVariableBindings(self, _previewView, _navigationFooterView, _headerView);
         ORKEnableAutoLayoutForViews(dictionary.allValues);
         
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(orientationDidChange) name:UIApplicationDidChangeStatusBarOrientationNotification object:nil];
@@ -95,28 +99,30 @@
 }
 
 - (void)orientationDidChange {
-    AVCaptureVideoOrientation orientation;
-    switch ([[UIApplication sharedApplication] statusBarOrientation]) {
-        case UIInterfaceOrientationLandscapeRight:
-            orientation = AVCaptureVideoOrientationLandscapeRight;
-            break;
-        case UIInterfaceOrientationLandscapeLeft:
-            orientation = AVCaptureVideoOrientationLandscapeLeft;
-            break;
-        case UIInterfaceOrientationPortraitUpsideDown:
-            orientation = AVCaptureVideoOrientationPortraitUpsideDown;
-            break;
-        case UIInterfaceOrientationPortrait:
-            orientation = AVCaptureVideoOrientationPortrait;
-            break;
-        case UIInterfaceOrientationUnknown:
-            // Do nothing in these cases, since we don't need to change display orientation.
-            return;
-    }
-    
-    [_previewView setVideoOrientation:orientation];
-    [self.delegate videoOrientationDidChange:orientation];
-    [self setNeedsUpdateConstraints];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        AVCaptureVideoOrientation orientation = AVCaptureVideoOrientationPortrait;
+        switch ([[UIApplication sharedApplication] statusBarOrientation]) {
+            case UIInterfaceOrientationLandscapeRight:
+                orientation = AVCaptureVideoOrientationLandscapeRight;
+                break;
+            case UIInterfaceOrientationLandscapeLeft:
+                orientation = AVCaptureVideoOrientationLandscapeLeft;
+                break;
+            case UIInterfaceOrientationPortraitUpsideDown:
+                orientation = AVCaptureVideoOrientationPortraitUpsideDown;
+                break;
+            case UIInterfaceOrientationPortrait:
+                orientation = AVCaptureVideoOrientationPortrait;
+                break;
+            case UIInterfaceOrientationUnknown:
+                // Do nothing in these cases, since we don't need to change display orientation.
+                return;
+        }
+        
+        [_previewView setVideoOrientation:orientation];
+        [self.delegate videoOrientationDidChange:orientation];
+        [self setNeedsUpdateConstraints];
+    });
 }
 
 - (void)setImageCaptureStep:(ORKImageCaptureStep *)imageCaptureStep {
@@ -146,24 +152,24 @@
         _previewView.accessibilityHint = nil;
         
         // Show skip, if available, and hide the template and continue/capture button
-        _continueSkipContainer.continueButtonItem = nil;
-        _continueSkipContainer.skipButtonItem = _skipButtonItem;
+        _navigationFooterView.continueButtonItem = nil;
+        _navigationFooterView.skipButtonItem = _skipButtonItem;
     } else if (self.capturedImage) {
         // Hide the template image after capturing
         _previewView.templateImageHidden = YES;
         _previewView.accessibilityHint = nil;
 
         // Set the continue button to the one we've saved and configure the skip button as a recapture button
-        _continueSkipContainer.continueButtonItem = _continueButtonItem;
-        _continueSkipContainer.skipButtonItem = _recaptureButtonItem;
+        _navigationFooterView.continueButtonItem = _continueButtonItem;
+        _navigationFooterView.skipButtonItem = _recaptureButtonItem;
     } else {
         // Show the template image during capturing
         _previewView.templateImageHidden = NO;
         _previewView.accessibilityHint = _imageCaptureStep.accessibilityInstructions;
     
         // Change the continue button back to capture, and change the recapture button back to skip (if available)
-        _continueSkipContainer.continueButtonItem = _captureButtonItem;
-        _continueSkipContainer.skipButtonItem = _skipButtonItem;
+        _navigationFooterView.continueButtonItem = _captureButtonItem;
+        _navigationFooterView.skipButtonItem = _skipButtonItem;
     }
 }
 
@@ -182,8 +188,8 @@
 }
 
 - (void)updateConstraints {
-    const CGFloat ContinueSkipContainerTranslucentAlpha = 0.5;
-    const CGFloat ContinueSkipContainerOpaqueAlpha = 0.0;
+    const CGFloat NavigationFooterViewTranslucentAlpha = 0.5;
+    const CGFloat NavigationFooterViewOpaqueAlpha = 0.0;
 
     if (_variableConstraints) {
         [NSLayoutConstraint deactivateConstraints:_variableConstraints];
@@ -194,7 +200,7 @@
         _variableConstraints = [[NSMutableArray alloc] init];
     }
     
-    NSDictionary *views = NSDictionaryOfVariableBindings(self, _previewView, _continueSkipContainer, _headerView);
+    NSDictionary *views = NSDictionaryOfVariableBindings(self, _previewView, _navigationFooterView, _headerView);
     ORKEnableAutoLayoutForViews(views.allValues);
     
     [_variableConstraints addObjectsFromArray:
@@ -209,12 +215,12 @@
                                                                                         views:views]];
     
     [_variableConstraints addObjectsFromArray:
-     [NSLayoutConstraint constraintsWithVisualFormat:@"V:|[_headerView]-[_continueSkipContainer]|"
+     [NSLayoutConstraint constraintsWithVisualFormat:@"V:|[_headerView]-(>=0)-|"
                                              options:NSLayoutFormatDirectionLeadingToTrailing
                                              metrics:nil
                                                views:views]];
     [_variableConstraints addObjectsFromArray:
-     [NSLayoutConstraint constraintsWithVisualFormat:@"H:|[_continueSkipContainer]|"
+     [NSLayoutConstraint constraintsWithVisualFormat:@"H:|[_navigationFooterView]|"
                                              options:NSLayoutFormatDirectionLeadingToTrailing
                                              metrics:nil
                                                views:views]];
@@ -225,21 +231,21 @@
          [NSLayoutConstraint constraintsWithVisualFormat:@"V:|[_previewView]|"
                                                  options:NSLayoutFormatDirectionLeadingToTrailing metrics:nil
                                                    views:views]];
-        [_variableConstraints addObject:[NSLayoutConstraint constraintWithItem:_continueSkipContainer
+        [_variableConstraints addObject:[NSLayoutConstraint constraintWithItem:_navigationFooterView
                                                                      attribute:NSLayoutAttributeBottom
                                                                      relatedBy:NSLayoutRelationEqual
                                                                         toItem:self
                                                                      attribute:NSLayoutAttributeBottom
                                                                     multiplier:1.0
                                                                       constant:0.0]];
-        _continueSkipContainer.backgroundColor = [_continueSkipContainer.backgroundColor colorWithAlphaComponent:ContinueSkipContainerTranslucentAlpha];
+        _navigationFooterView.backgroundColor = [_navigationFooterView.backgroundColor colorWithAlphaComponent:NavigationFooterViewTranslucentAlpha];
     } else {
         [_variableConstraints addObjectsFromArray:
-         [NSLayoutConstraint constraintsWithVisualFormat:@"V:|[_previewView]-[_continueSkipContainer]|"
+         [NSLayoutConstraint constraintsWithVisualFormat:@"V:|[_previewView]-[_navigationFooterView]|"
                                                  options:NSLayoutFormatDirectionLeadingToTrailing
                                                  metrics:nil
                                                    views:views]];
-        _continueSkipContainer.backgroundColor = [_continueSkipContainer.backgroundColor colorWithAlphaComponent:ContinueSkipContainerOpaqueAlpha];
+        _navigationFooterView.backgroundColor = [_navigationFooterView.backgroundColor colorWithAlphaComponent:NavigationFooterViewOpaqueAlpha];
     }
     
     [NSLayoutConstraint activateConstraints:_variableConstraints];
@@ -261,6 +267,11 @@
         _skipButtonItem = skipButtonItem;
         [self updateAppearance];
     }
+}
+
+- (void)setCancelButtonItem:(UIBarButtonItem *)cancelButtonItem {
+    _cancelButtonItem = cancelButtonItem;
+    [self updateAppearance];
 }
 
 - (void)setContinueButtonItem:(UIBarButtonItem *)continueButtonItem {
@@ -301,7 +312,7 @@
 - (void)sessionWasInterrupted:(NSNotification *)notification {
     AVCaptureSessionInterruptionReason reason = [notification.userInfo[AVCaptureSessionInterruptionReasonKey] integerValue];
     if (reason == AVCaptureSessionInterruptionReasonVideoDeviceNotAvailableWithMultipleForegroundApps) {
-        [self setError:[[NSError alloc] initWithDomain:@"" code:0 userInfo:@{NSLocalizedDescriptionKey : ORKLocalizedString(@"CAMERA_UNAVAILABLE_MESSAGE", nil)}]];
+        [self setError:[[NSError alloc] initWithDomain:@"" code:0 userInfo:@{NSLocalizedDescriptionKey: ORKLocalizedString(@"CAMERA_UNAVAILABLE_MESSAGE", nil)}]];
     }
 }
 

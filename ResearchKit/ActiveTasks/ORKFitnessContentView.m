@@ -30,11 +30,15 @@
 
 
 #import "ORKFitnessContentView.h"
-#import "ORKHelpers.h"
-#import <CoreMotion/CoreMotion.h>
-#import "ORKSkin.h"
+
 #import "ORKActiveStepQuantityView.h"
 #import "ORKTintedImageView.h"
+
+#import "ORKHelpers_Internal.h"
+#import "ORKSkin.h"
+
+@import CoreMotion;
+@import HealthKit;
 
 
 // #define LAYOUT_TEST 1
@@ -222,7 +226,7 @@
                                                                                       toItem:nil
                                                                                    attribute:NSLayoutAttributeNotAnAttribute
                                                                                   multiplier:1.0
-                                                                                    constant:ORKScreenMetricMaxDimension];
+                                                                                    constant:CGFLOAT_MIN];
     imageSpacerHeightConstraint.priority = UILayoutPriorityDefaultLow - 1;
     [constraints addObject:imageSpacerHeightConstraint];
     
@@ -315,7 +319,7 @@
     HKQuantity *quantity = [HKQuantity quantityWithUnit:[HKUnit meterUnit] doubleValue:displayDistance];
     distanceString = [_lengthFormatter.numberFormatter stringFromNumber:@([quantity doubleValueForUnit:hkUnit]*conversionFactor)];
     
-    [self distanceView].title = [NSString stringWithFormat:ORKLocalizedString(@"FITNESS_DISTANCE_TITLE_FORMAT", nil), unitString];
+    [self distanceView].title = [NSString localizedStringWithFormat:ORKLocalizedString(@"FITNESS_DISTANCE_TITLE_FORMAT", nil), unitString];
     [self distanceView].value = distanceString;
 }
 
@@ -325,19 +329,18 @@
 }
 
 - (void)updateTimerLabel {
-    static NSDateComponentsFormatter *_formatter = nil;
+    static NSDateComponentsFormatter *formatter = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        NSDateComponentsFormatter *fmt = [NSDateComponentsFormatter new];
-        fmt.unitsStyle = NSDateComponentsFormatterUnitsStylePositional;
-        fmt.zeroFormattingBehavior = NSDateComponentsFormatterZeroFormattingBehaviorPad;
-        fmt.allowedUnits = NSCalendarUnitMinute | NSCalendarUnitSecond;
-        _formatter = fmt;
+        formatter = [NSDateComponentsFormatter new];
+        formatter.unitsStyle = NSDateComponentsFormatterUnitsStylePositional;
+        formatter.zeroFormattingBehavior = NSDateComponentsFormatterZeroFormattingBehaviorPad;
+        formatter.allowedUnits = NSCalendarUnitMinute | NSCalendarUnitSecond;
     });
     
-    NSString *s = [_formatter stringFromTimeInterval:MAX(round(_timeLeft),0)];
-    _timerLabel.text = s;
-    _timerLabel.hidden = (s == nil);
+    NSString *labelString = [formatter stringFromTimeInterval:MAX(round(_timeLeft),0)];
+    _timerLabel.text = labelString;
+    _timerLabel.hidden = (labelString == nil);
 }
 
 @end

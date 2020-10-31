@@ -28,20 +28,37 @@
  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#import <ResearchKit/ORKTypes.h>
+#import <ResearchKit/ORKContinueButton.h>
+#import <ResearchKit/ORKNavigationContainerView.h>
+#import <ResearchKit/ORKFootnoteLabel.h>
 
-#import "ORKNavigationContainerView.h"
-#import "ORKTextButton.h"
-#import "ORKContinueButton.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
+@interface ORKBorderedButton ()
+
+- (void)setAppearanceAsTextButton;
+- (void)setAppearanceAsBoldTextButton;
+- (void)resetAppearanceAsBorderedButton;
+
+@end
 
 @interface ORKNavigationContainerView ()
 
 @property (nonatomic, strong, readonly) ORKContinueButton *continueButton;
-@property (nonatomic, strong, readonly) ORKTextButton *skipButton;
+@property (nonatomic, strong, readonly) ORKBorderedButton *skipButton;
+@property (nonatomic, strong, readonly) ORKFootnoteLabel *footnoteLabel;
+@property (nonatomic, strong, readonly) ORKBorderedButton *cancelButton;
 
 @property (nonatomic) BOOL useNextForSkip;
 @property (nonatomic, getter=isOptional) BOOL optional;
 
+@property (nonatomic) ORKNavigationContainerButtonStyle skipButtonStyle;
+@property (nonatomic) ORKNavigationContainerButtonStyle cancelButtonStyle;
+
 - (void)updateContinueAndSkipEnabled;
 
 @end
+
+NS_ASSUME_NONNULL_END

@@ -30,7 +30,10 @@
 
 
 #import "ORKPSATStep.h"
+
 #import "ORKPSATStepViewController.h"
+
+#import "ORKHelpers_Internal.h"
 
 
 @implementation ORKPSATStep
@@ -57,8 +60,8 @@
     
     NSTimeInterval const ORKPSATStimulusMinimumDuration = 0.2;
     
-    NSInteger const ORKPSATSerieMinimumLength = 10;
-    NSInteger const ORKPSATSerieMaximumLength = 120;
+    NSInteger const ORKPSATSeriesMinimumLength = 3;
+    NSInteger const ORKPSATSeriesMaximumLength = 120;
 
     NSTimeInterval totalDuration = (self.seriesLength + 1) * self.interStimulusInterval;
     if (self.stepDuration != totalDuration) {
@@ -80,14 +83,61 @@
         @throw [NSException exceptionWithName:NSInvalidArgumentException reason:[NSString stringWithFormat:@"stimulus duration must be greater than or equal to %@ seconds and less than or equal to %@ seconds.", @(ORKPSATStimulusMinimumDuration), @(self.interStimulusInterval)] userInfo:nil];
     }
     
-    if (self.seriesLength < ORKPSATSerieMinimumLength ||
-        self.seriesLength > ORKPSATSerieMaximumLength) {
-        @throw [NSException exceptionWithName:NSInvalidArgumentException reason:[NSString stringWithFormat:@"serie length must be greater than or equal to %@ additions and less than or equal to %@ additions.", @(ORKPSATSerieMinimumLength), @(ORKPSATSerieMaximumLength)] userInfo:nil];
+    if (self.seriesLength < ORKPSATSeriesMinimumLength ||
+        self.seriesLength > ORKPSATSeriesMaximumLength) {
+        @throw [NSException exceptionWithName:NSInvalidArgumentException reason:[NSString stringWithFormat:@"series length must be greater than or equal to %@ additions and less than or equal to %@ additions.", @(ORKPSATSeriesMinimumLength), @(ORKPSATSeriesMaximumLength)] userInfo:nil];
     }
 }
 
 - (BOOL)allowsBackNavigation {
     return NO;
+}
+
++ (BOOL)supportsSecureCoding {
+    return YES;
+}
+
+- (instancetype)initWithCoder:(NSCoder *)aDecoder {
+    self = [super initWithCoder:aDecoder];
+    if (self) {
+        ORK_DECODE_ENUM(aDecoder, presentationMode);
+        ORK_DECODE_DOUBLE(aDecoder, interStimulusInterval);
+        ORK_DECODE_DOUBLE(aDecoder, stimulusDuration);
+        ORK_DECODE_INTEGER(aDecoder, seriesLength);
+    }
+    return self;
+}
+
+- (void)encodeWithCoder:(NSCoder *)aCoder {
+    [super encodeWithCoder:aCoder];
+    ORK_ENCODE_ENUM(aCoder, presentationMode);
+    ORK_ENCODE_DOUBLE(aCoder, interStimulusInterval);
+    ORK_ENCODE_DOUBLE(aCoder, stimulusDuration);
+    ORK_ENCODE_INTEGER(aCoder, seriesLength);
+}
+
+- (instancetype)copyWithZone:(NSZone *)zone {
+    ORKPSATStep *step = [super copyWithZone:zone];
+    step.presentationMode = self.presentationMode;
+    step.interStimulusInterval = self.interStimulusInterval;
+    step.stimulusDuration = self.stimulusDuration;
+    step.seriesLength = self.seriesLength;
+    return step;
+}
+
+- (NSUInteger)hash {
+    return [super hash] ^ self.presentationMode ^ (NSInteger)(self.interStimulusInterval*100) ^ (NSInteger)(self.stimulusDuration*100) ^ self.seriesLength;
+}
+
+- (BOOL)isEqual:(id)object {
+    BOOL isParentSame = [super isEqual:object];
+    
+    __typeof(self) castObject = object;
+    return (isParentSame &&
+            (self.presentationMode == castObject.presentationMode) &&
+            (self.interStimulusInterval == castObject.interStimulusInterval) &&
+            (self.stimulusDuration == castObject.stimulusDuration) &&
+            (self.seriesLength == castObject.seriesLength));
 }
 
 @end

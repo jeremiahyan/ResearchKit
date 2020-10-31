@@ -30,12 +30,15 @@
 
 
 #import "ORKAccelerometerRecorder.h"
+
 #import "ORKDataLogger.h"
-#import "CMAccelerometerData+ORKJSONDictionary.h"
-#import <CoreMotion/CoreMotion.h>
+
 #import "ORKRecorder_Internal.h"
-#import "ORKRecorder_Private.h"
-#import "ORKHelpers.h"
+
+#import "ORKHelpers_Internal.h"
+#import "CMAccelerometerData+ORKJSONDictionary.h"
+
+@import CoreMotion;
 
 
 @interface ORKAccelerometerRecorder () {
@@ -70,7 +73,7 @@
 }
 
 - (void)setFrequency:(double)frequency {
-    if (frequency <=0) {
+    if (frequency <= 0) {
         _frequency = 1;
     } else {
         _frequency = frequency;
@@ -87,10 +90,10 @@
     self.motionManager = [self createMotionManager];
     
     if (!_logger) {
-        NSError *err = nil;
-        _logger = [self makeJSONDataLoggerWithError:&err];
+        NSError *error = nil;
+        _logger = [self makeJSONDataLoggerWithError:&error];
         if (!_logger) {
-            [self finishRecordingWithError:err];
+            [self finishRecordingWithError:error];
             return;
         }
     }
@@ -98,7 +101,7 @@
     if (!self.motionManager || !self.motionManager.accelerometerAvailable) {
         NSError *error = [NSError errorWithDomain:NSCocoaErrorDomain
                                              code:NSFeatureUnsupportedError
-                                         userInfo:@{@"recorder" : self}];
+                                         userInfo:@{@"recorder": self}];
         [self finishRecordingWithError:error];
         return;
     }
@@ -124,7 +127,7 @@
 }
 
 - (NSDictionary *)userInfo {
-    return  @{ @"frequency" : @(self.frequency) };
+    return  @{ @"frequency": @(self.frequency) };
 }
 
 - (void)stop {

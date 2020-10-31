@@ -32,13 +32,14 @@
 
 #import "ORKTintedImageView.h"
 #import "ORKTintedImageView_Internal.h"
-#import "ORKHelpers.h"
+
+#import "ORKHelpers_Internal.h"
 
 
 #define ORKTintedImageLog(...)
 
-static inline BOOL ORKIsImageAnimated(UIImage *image) {
-    return [image images].count > 1;
+ORK_INLINE BOOL ORKIsImageAnimated(UIImage *image) {
+    return image.images.count > 1;
 }
 
 UIImage *ORKImageByTintingImage(UIImage *image, UIColor *tintColor, CGFloat scale) {
@@ -49,7 +50,7 @@ UIImage *ORKImageByTintingImage(UIImage *image, UIColor *tintColor, CGFloat scal
     ORKTintedImageLog(@"%@ %@ %f", image, tintColor, scale);
     
     UIGraphicsBeginImageContextWithOptions(image.size, NO, scale);
-    CGContextRef context     = UIGraphicsGetCurrentContext();
+    CGContextRef context = UIGraphicsGetCurrentContext();
     CGContextSetBlendMode(context, kCGBlendModeNormal);
     CGContextSetAlpha(context, 1);
     
@@ -69,6 +70,10 @@ UIImage *ORKImageByTintingImage(UIImage *image, UIColor *tintColor, CGFloat scal
 @interface ORKTintedImageCacheKey : NSObject
 
 - (instancetype)initWithImage:(UIImage *)image tintColor:(UIColor *)tintColor scale:(CGFloat)scale;
+
+@property (nonatomic, readonly) UIImage *image;
+@property (nonatomic, readonly) UIColor *tintColor;
+@property (nonatomic, readonly) CGFloat scale;
 
 @end
 
@@ -95,9 +100,9 @@ UIImage *ORKImageByTintingImage(UIImage *image, UIColor *tintColor, CGFloat scal
     }
     
     __typeof(self) castObject = object;
-    return (ORKEqualObjects(_image, castObject->_image)
-            && ORKEqualObjects(_tintColor, castObject->_tintColor)
-            && ORKCGFloatNearlyEqualToFloat(_scale, castObject->_scale));
+    return (ORKEqualObjects(self.image, castObject.image)
+            && ORKEqualObjects(self.tintColor, castObject.tintColor)
+            && ORKCGFloatNearlyEqualToFloat(self.scale, castObject.scale));
 }
 
 @end
@@ -114,9 +119,9 @@ UIImage *ORKImageByTintingImage(UIImage *image, UIColor *tintColor, CGFloat scal
 
 + (instancetype)sharedCache
 {
-    static dispatch_once_t pred;
+    static dispatch_once_t onceToken;
     static id sharedInstance = nil;
-    dispatch_once(&pred, ^{
+    dispatch_once(&onceToken, ^{
         sharedInstance = [[[self class] alloc] init];
     });
     return sharedInstance;
@@ -174,7 +179,6 @@ UIImage *ORKImageByTintingImage(UIImage *image, UIColor *tintColor, CGFloat scal
                 _tintedImage = [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
             }
         } else {
-            // Manually apply the tint for animated images (template rendering mode doesn't work: <rdar://problem/19792197>)
             NSArray *animationImages = image.images;
             NSMutableArray *tintedAnimationImages = [[NSMutableArray alloc] initWithCapacity:animationImages.count];
             for (UIImage *animationImage in animationImages) {

@@ -28,10 +28,14 @@
  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
+@import UIKit;
 #import "ORKCustomStepView_Internal.h"
-#import "ORKRoundTappingButton.h"
+
 
 NS_ASSUME_NONNULL_BEGIN
+
+@class ORKRoundTappingButton;
 
 @interface ORKToneAudiometryContentView : ORKActiveStepCustomView
 
@@ -39,7 +43,8 @@ NS_ASSUME_NONNULL_BEGIN
             caption:(NSString *)caption
            animated:(BOOL)animated;
 
-@property (nonatomic, strong, readonly) ORKRoundTappingButton *tapButton;
+@property (nonatomic, strong, readonly) ORKRoundTappingButton *leftButton;
+@property (nonatomic, strong, readonly) ORKRoundTappingButton *rightButton;
 
 @end
 

@@ -29,12 +29,12 @@
  */
 
 
-#import <UIKit/UIKit.h>
-#import <ResearchKit/ORKConsentDocument.h>
-#import <ResearchKit/ORKConsentSection.h>
+@import UIKit;
 
 
 NS_ASSUME_NONNULL_BEGIN
+
+@class ORKConsentSection;
 
 @interface ORKConsentSceneViewController : UIViewController
 
@@ -43,6 +43,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, nullable) ORKConsentSection *section;
 
 @property (nonatomic, strong, nullable) UIBarButtonItem *continueButtonItem;
+
+@property (nonatomic, strong, nullable) UIBarButtonItem *cancelButtonItem;
 
 @property (nonatomic, strong, nullable) NSString *learnMoreButtonTitle;
 

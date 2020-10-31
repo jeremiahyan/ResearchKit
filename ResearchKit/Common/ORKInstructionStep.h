@@ -29,7 +29,8 @@
  */
 
 
-#import <ResearchKit/ResearchKit.h>
+@import UIKit;
+#import <ResearchKit/ORKStep.h>
 
 
 NS_ASSUME_NONNULL_BEGIN
@@ -47,20 +48,13 @@ ORK_CLASS_AVAILABLE
 @interface ORKInstructionStep : ORKStep
 
 /**
- Additional detailed explanation for the instruction.
+ Additional attributed explanation for the instruction.
  
- The detail text is displayed below the content of the `text` property.
+ The attributed detail text is displayed below the content of the `text` property and overrides `detailText`.
  */
-@property (nonatomic, copy, nullable) NSString *detailText;
+@property (nonatomic, copy, nullable) NSAttributedString *attributedDetailText;
 
-/**
- An image that provides visual context for the instruction.
- 
- The image is displayed with aspect fit. Depending on the device, the screen area
- available for this image can vary. For exact
- metrics, see `ORKScreenMetricIllustrationHeight`.
- */
-@property (nonatomic, copy, nullable) UIImage *image;
+@property (nonatomic) BOOL centerImageVertically;
 
 @end
 

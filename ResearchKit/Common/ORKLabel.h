@@ -29,10 +29,12 @@
  */
 
 
-#import <UIKit/UIKit.h>
-#import "ORKDefaultFont.h"
-#import "ORKDefines_Private.h"
+@import UIKit;
+#import <ResearchKit/ORKDefaultFont.h>
+#import <ResearchKit/ORKDefines.h>
 
+
+NS_ASSUME_NONNULL_BEGIN
 
 /**
  This is a base class, not being used directly.
@@ -49,3 +51,5 @@ ORK_CLASS_AVAILABLE
 - (void)updateAppearance;
 
 @end
+
+NS_ASSUME_NONNULL_END

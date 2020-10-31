@@ -29,18 +29,22 @@
  */
 
 
-#import <ResearchKit/ResearchKit_Private.h>
-#import "ORKInstructionStepView.h"
+#import <ResearchKit/ORKInstructionStepViewController.h>
 
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class ORKInstructionStepContainerView;
+@class ORKNavigationContainerView;
+
 @interface ORKInstructionStepViewController ()
 
-@property (nonatomic, strong, nullable) ORKInstructionStepView *stepView;
+@property (nonatomic, strong, nullable) ORKInstructionStepContainerView *stepView;
 
-// Use button title "Get start" instead of "Next".
+// Use button title "Get started" instead of "Next".
 - (void)useAppropriateButtonTitleAsLastBeginningInstructionStep;
+
+- (void)stepDidChange;
 
 @end
 

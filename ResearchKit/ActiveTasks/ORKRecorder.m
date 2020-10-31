@@ -32,13 +32,18 @@
 
 #import "ORKRecorder.h"
 #import "ORKRecorder_Internal.h"
-#import "ORKRecorder_Private.h"
-#import "ORKHelpers.h"
+
 #import "ORKDataLogger.h"
-#import "ORKDefines_Private.h"
+#import "ORKFileResult.h"
+
+#import "ORKHelpers_Internal.h"
 
 
 @implementation ORKRecorderConfiguration
+
++ (instancetype)new {
+    ORKThrowMethodUnavailableException();
+}
 
 - (instancetype)init {
     ORKThrowMethodUnavailableException();
@@ -97,6 +102,10 @@
 @implementation ORKRecorder {
     UIBackgroundTaskIdentifier _backgroundTask;
     NSUUID *_recorderUUID;
+}
+
++ (instancetype)new {
+    ORKThrowMethodUnavailableException();
 }
 
 - (instancetype)init {
@@ -183,15 +192,15 @@
     return [NSString stringWithFormat:@"%@_%@", [self recorderType], _recorderUUID.UUIDString];
 }
 
-- (ORKDataLogger *)makeJSONDataLoggerWithError:(NSError * __autoreleasing *)error {
+- (ORKDataLogger *)makeJSONDataLoggerWithError:(NSError **)errorOut {
     NSURL *workingDir = [self recordingDirectoryURL];
     if (!workingDir) {
-        if (error) {
-            *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileWriteInvalidFileNameError userInfo:@{NSLocalizedDescriptionKey:ORKLocalizedString(@"ERROR_RECORDER_NO_OUTPUT_DIRECTORY", nil)}];
+        if (errorOut != NULL) {
+            *errorOut = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileWriteInvalidFileNameError userInfo:@{NSLocalizedDescriptionKey:ORKLocalizedString(@"ERROR_RECORDER_NO_OUTPUT_DIRECTORY", nil)}];
         }
         return nil;
     }
-    if (![[NSFileManager defaultManager] createDirectoryAtURL:workingDir withIntermediateDirectories:YES attributes:nil error:error]) {
+    if (![[NSFileManager defaultManager] createDirectoryAtURL:workingDir withIntermediateDirectories:YES attributes:nil error:errorOut]) {
         return nil;
     }
     
@@ -220,8 +229,8 @@
 - (void)applyFileProtection:(ORKFileProtectionMode)fileProtection toFileAtURL:(NSURL *)url {
     NSFileManager *fileManager = [NSFileManager defaultManager];
     NSError *error = nil;
-    if (!  [fileManager setAttributes:@{NSFileProtectionKey : ORKFileProtectionFromMode(fileProtection)} ofItemAtPath:[url path] error:&error]) {
-        ORK_Log_Warning(@"Error setting %@ on %@: %@", ORKFileProtectionFromMode(fileProtection), url, error);
+    if (! [fileManager setAttributes:@{NSFileProtectionKey: ORKFileProtectionFromMode(fileProtection)} ofItemAtPath:[url path] error:&error]) {
+        ORK_Log_Error("Error setting %@ on %@: %@", ORKFileProtectionFromMode(fileProtection), url, error);
     }
 }
 

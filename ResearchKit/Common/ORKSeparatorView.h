@@ -29,11 +29,15 @@
  */
 
 
-#import <UIKit/UIKit.h>
-#import "ORKDefines_Private.h"
+@import UIKit;
+#import <ResearchKit/ORKDefines.h>
 
+
+NS_ASSUME_NONNULL_BEGIN
 
 ORK_CLASS_AVAILABLE
 @interface ORKSeparatorView : UIView
 
 @end
+
+NS_ASSUME_NONNULL_END

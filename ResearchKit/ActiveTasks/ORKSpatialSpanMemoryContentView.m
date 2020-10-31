@@ -30,11 +30,14 @@
 
 
 #import "ORKSpatialSpanMemoryContentView.h"
-#import "ORKSpatialSpanTargetView.h"
+
 #import "ORKActiveStepQuantityView.h"
+#import "ORKNavigationContainerView.h"
+#import "ORKSpatialSpanTargetView.h"
 #import "ORKVerticalContainerView.h"
+
+#import "ORKHelpers_Internal.h"
 #import "ORKSkin.h"
-#import "ORKHelpers.h"
 
 
 // #define LAYOUT_DEBUG 1
@@ -167,7 +170,7 @@
 
 @implementation ORKSpatialSpanMemoryContentView {
     ORKQuantityPairView *_quantityPairView;
-    ORKNavigationContainerView *_continueView;
+    UIView *_continueView;
 }
 
 - (ORKActiveStepQuantityView *)countView {
@@ -189,10 +192,8 @@
         _quantityPairView.translatesAutoresizingMaskIntoConstraints = NO;
         [self addSubview:_quantityPairView];
         
-        _continueView = [ORKNavigationContainerView new];
+        _continueView = [UIView new];
         _continueView.translatesAutoresizingMaskIntoConstraints = NO;
-        _continueView.continueEnabled = YES;
-        _continueView.bottomMargin = 20;
         [self addSubview:_continueView];
         
         ORKActiveStepQuantityView *countView = [self countView];
@@ -200,7 +201,7 @@
         
         _capitalizedPluralItemDescription = [ORKLocalizedString(@"SPATIAL_SPAN_MEMORY_TARGET_STANDALONE", nil) capitalizedStringWithLocale:[NSLocale currentLocale]];
         
-        countView.title = [NSString stringWithFormat:ORKLocalizedString(@"MEMORY_GAME_ITEM_COUNT_TITLE_%@", nil), _capitalizedPluralItemDescription];
+        countView.title = [NSString localizedStringWithFormat:ORKLocalizedString(@"MEMORY_GAME_ITEM_COUNT_TITLE_%@", nil), _capitalizedPluralItemDescription];
         scoreView.title = ORKLocalizedString(@"MEMORY_GAME_SCORE_TITLE", nil);
         countView.enabled = YES;
         scoreView.enabled = YES;
@@ -226,18 +227,25 @@
 
 - (void)setCapitalizedPluralItemDescription:(NSString *)capitalizedPluralItemDescription {
     _capitalizedPluralItemDescription = capitalizedPluralItemDescription;
-    [self countView].title = [NSString stringWithFormat:ORKLocalizedString(@"MEMORY_GAME_ITEM_COUNT_TITLE_%@", nil), _capitalizedPluralItemDescription];
+    [self countView].title = [NSString localizedStringWithFormat:ORKLocalizedString(@"MEMORY_GAME_ITEM_COUNT_TITLE_%@", nil), _capitalizedPluralItemDescription];
 }
 
 - (void)setNumberOfItems:(NSInteger)numberOfItems {
     ORKActiveStepQuantityView *countView = [self countView];
-    countView.value = [NSString stringWithFormat:@"%ld", (long)numberOfItems];
+    countView.value = [self stringWithNumberFormatter:numberOfItems];
 }
-
 
 - (void)setScore:(NSInteger)score {
     ORKActiveStepQuantityView *scoreView = [self scoreView];
-    scoreView.value = [NSString stringWithFormat:@"%ld", (long)score];
+    scoreView.value = [self stringWithNumberFormatter:score];
+}
+
+- (NSString *)stringWithNumberFormatter: (NSInteger)integer {
+    NSNumberFormatter *formatter = [NSNumberFormatter new];
+    formatter.numberStyle = NSNumberFormatterNoStyle;
+    formatter.locale = [NSLocale currentLocale];
+    
+    return [NSString stringWithFormat:@"%@", [formatter stringFromNumber:[NSNumber numberWithLong:(long)integer]]];
 }
 
 - (void)updateFooterHidden {
@@ -249,9 +257,31 @@
     [self updateFooterHidden];
 }
 
-- (void)setButtonItem:(UIBarButtonItem *)buttonItem {
+- (void)setButtonItem:(ORKBorderedButton *)buttonItem {
     _buttonItem = buttonItem;
-    _continueView.continueButtonItem = buttonItem;
+    if (buttonItem) {
+        buttonItem.contentEdgeInsets = (UIEdgeInsets){.top = 2, .bottom = 2, .left = 8, .right = 8};
+        buttonItem.translatesAutoresizingMaskIntoConstraints = NO;
+        [_continueView addSubview:buttonItem];
+        [[NSLayoutConstraint constraintWithItem:_buttonItem
+                                      attribute:NSLayoutAttributeCenterX
+                                      relatedBy:NSLayoutRelationEqual
+                                         toItem:_continueView
+                                      attribute:NSLayoutAttributeCenterX
+                                     multiplier:1.0
+                                       constant:0.0] setActive:YES];
+        [[NSLayoutConstraint constraintWithItem:_buttonItem
+                                      attribute:NSLayoutAttributeCenterY
+                                      relatedBy:NSLayoutRelationEqual
+                                         toItem:_continueView
+                                      attribute:NSLayoutAttributeCenterY
+                                     multiplier:1.0
+                                       constant:0.0] setActive:YES];
+    }
+    else {
+        [_buttonItem removeFromSuperview];
+    }
+    
     _continueView.hidden = (buttonItem == nil);
     [self updateFooterHidden];
 }
@@ -278,9 +308,9 @@
     NSDictionary *views = NSDictionaryOfVariableBindings(_gameView, _quantityPairView, _continueView);
     
     [constraints addObjectsFromArray:
-     [NSLayoutConstraint constraintsWithVisualFormat:@"V:|-(>=0)-[_gameView][_quantityPairView]|"
+     [NSLayoutConstraint constraintsWithVisualFormat:@"V:|[_gameView(>=ORKScreenMetricMinimumGameViewHeightForMemoryGame)][_quantityPairView]|"
                                              options:NSLayoutFormatAlignAllCenterX
-                                             metrics:nil
+                                             metrics:@{@"ORKScreenMetricMinimumGameViewHeightForMemoryGame": @(ORKGetMetricForWindow(ORKScreenMetricMinimumGameViewHeightForMemoryGame, self.window))}
                                                views:views]];
     NSLayoutConstraint *gameViewHeightConstraint = [NSLayoutConstraint constraintWithItem:_gameView
                                                                       attribute:NSLayoutAttributeHeight
@@ -288,7 +318,7 @@
                                                                          toItem:nil
                                                                       attribute:NSLayoutAttributeNotAnAttribute
                                                                      multiplier:1.0
-                                                                       constant:ORKScreenMetricMaxDimension];
+                                                                       constant:CGFLOAT_MIN];
     gameViewHeightConstraint.priority = UILayoutPriorityDefaultLow - 1;
     [constraints addObject:gameViewHeightConstraint];
     
@@ -314,7 +344,7 @@
                                                          constant:0.0]];
     [constraints addObject:[NSLayoutConstraint constraintWithItem:_continueView
                                                         attribute:NSLayoutAttributeTop
-                                                        relatedBy:NSLayoutRelationGreaterThanOrEqual
+                                                        relatedBy:NSLayoutRelationEqual
                                                            toItem:_quantityPairView
                                                         attribute:NSLayoutAttributeTop
                                                        multiplier:1.0

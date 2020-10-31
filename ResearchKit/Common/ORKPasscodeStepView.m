@@ -30,32 +30,28 @@
 
 
 #import "ORKPasscodeStepView.h"
+#import "ORKStepContainerView_Private.h"
+
+#import "ORKStepHeaderView_Internal.h"
+#import "ORKTextFieldView.h"
 
 
 @implementation ORKPasscodeStepView {
     ORKPasscodeTextField *_textField;
 }
 
-- (instancetype)initWithFrame:(CGRect)frame {
-    self = [super initWithFrame:frame];
+- (instancetype)init {
+    self = [super init];
     if (self) {
         // Additional configuration for the passcode text field.
         _textField = [ORKPasscodeTextField new];
         _textField.translatesAutoresizingMaskIntoConstraints = NO;
+        self.customContentView = _textField;
         
-        self.stepView = _textField;
-        
-        [self addConstraints:@[
-                               [NSLayoutConstraint constraintWithItem:_textField
-                                                            attribute:NSLayoutAttributeWidth
-                                                            relatedBy:NSLayoutRelationEqual
-                                                               toItem:self
-                                                            attribute:NSLayoutAttributeWidth
-                                                           multiplier:1.0
-                                                             constant:0]
-                               ]
-         ];
-        
+        // Setting image view with app icon (if available).
+        NSDictionary *infoPlist = [[NSBundle mainBundle] infoDictionary];
+        NSString *icon = [[infoPlist valueForKeyPath:@"CFBundleIcons.CFBundlePrimaryIcon.CFBundleIconFiles"] lastObject];
+        self.titleIconImage = [UIImage imageNamed:icon];
     }
     return self;
 }

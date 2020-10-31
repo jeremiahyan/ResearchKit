@@ -29,7 +29,10 @@
  */
 
 
-#import <UIKit/UIKit.h>
+@import UIKit;
+
+
+NS_ASSUME_NONNULL_BEGIN
 
 @class ORKTowerOfHanoiTowerView;
 
@@ -37,7 +40,7 @@
 
 @required
 - (NSUInteger)numberOfDisksInTowerOfHanoiView:(ORKTowerOfHanoiTowerView *)towerView;
-- (NSNumber *)towerOfHanoiView:(ORKTowerOfHanoiTowerView *)towerView diskAtIndex:(NSUInteger)index;
+- (nullable NSNumber *)towerOfHanoiView:(ORKTowerOfHanoiTowerView *)towerView diskAtIndex:(NSUInteger)index;
 
 @end
 
@@ -45,7 +48,7 @@
 
 @required
 - (void)towerOfHanoiTowerViewWasSelected:(ORKTowerOfHanoiTowerView *)towerView;
-- (ORKTowerOfHanoiTowerView *)towerOfHanoiHighlightedTowerView;
+- (nullable ORKTowerOfHanoiTowerView *)towerOfHanoiHighlightedTowerView;
 
 @end
 
@@ -62,3 +65,5 @@
 - (void)reloadData;
 
 @end
+
+NS_ASSUME_NONNULL_END

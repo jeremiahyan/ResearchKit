@@ -29,9 +29,8 @@
  */
 
 
-#import <Foundation/Foundation.h>
-#import <XCTest/XCTest.h>
-#import "ORKDataLogger.h"
+@import XCTest;
+@import ResearchKit.Private;
 
 
 @interface ORKDataLoggerManagerTests : XCTestCase <ORKDataLoggerManagerDelegate> {
@@ -191,9 +190,9 @@
     XCTAssertEqual(_totalBytesReachedCounter, 1);
     XCTAssertEqual(_pendingUploadBytesReachedCounter, 0);
     
-    NSError *err = nil;
-    XCTAssertTrue([_manager removeOldAndUploadedLogsToThreshold:9 error:&err]);
-    XCTAssertNil(err);
+    NSError *error = nil;
+    XCTAssertTrue([_manager removeOldAndUploadedLogsToThreshold:9 error:&error]);
+    XCTAssertNil(error);
     [[NSRunLoop mainRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:filesystemSettleTime]];
     XCTAssertTrue(_manager.totalBytes <= 10);
     
@@ -221,7 +220,9 @@
     XCTAssertTrue([dm2 append:@{@"test":@"blah"} error:nil]);
     XCTAssertTrue([dm1 append:@{@"test":@"blah"} error:nil]);
     [dm3 finishCurrentLog];
+    [[NSRunLoop mainRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.2]];
     [dm2 finishCurrentLog];
+    [[NSRunLoop mainRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.2]];
     [dm1 finishCurrentLog];
     [[NSRunLoop mainRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.2]];
     

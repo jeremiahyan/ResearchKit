@@ -32,17 +32,19 @@
 
 #import "ORKConsentSceneViewController.h"
 #import "ORKConsentSceneViewController_Internal.h"
-#import "ORKConsentLearnMoreViewController.h"
-#import "ORKHelpers.h"
-#import "ORKSkin.h"
-#import <ResearchKit/ResearchKit_Private.h>
-#import "ORKVerticalContainerView.h"
-#import "ORKVerticalContainerView_Internal.h"
-#import "ORKConsentDocument_Internal.h"
-#import "ORKConsentSection_Internal.h"
-#import "ORKStepHeaderView_Internal.h"
+
 #import "ORKNavigationContainerView_Internal.h"
+#import "ORKStepHeaderView_Internal.h"
 #import "ORKTintedImageView.h"
+#import "ORKStepView_Private.h"
+#import "ORKStepContentView_Private.h"
+#import "ORKConsentLearnMoreViewController.h"
+
+#import "ORKConsentDocument_Internal.h"
+#import "ORKConsentSection_Private.h"
+
+#import "ORKHelpers_Internal.h"
+#import "ORKSkin.h"
 
 
 @interface ORKConsentSceneView ()
@@ -51,33 +53,14 @@
 
 @end
 
-
 @implementation ORKConsentSceneView
-
-- (instancetype)initWithFrame:(CGRect)frame {
-    self = [super initWithFrame:frame];
-    if (self) {
-        self.imageView.shouldApplyTint = YES;
-        self.imageView.enableTintedImageCaching = YES;
-    }
-    return self;
-}
 
 - (void)setConsentSection:(ORKConsentSection *)consentSection {
     _consentSection = consentSection;
     
-    BOOL isOverview = (consentSection.type == ORKConsentSectionTypeOverview);
-    self.verticalCenteringEnabled = isOverview;
-    self.continueHugsContent =  isOverview;
+    self.stepTopContentImage = consentSection.image;
+    self.stepText = [consentSection summary];
     
-    self.headerView.instructionLabel.hidden = ![consentSection summary].length;
-    self.headerView.captionLabel.text = consentSection.title;
-    
-    self.imageView.image = consentSection.image;
-    self.headerView.instructionLabel.text = [consentSection summary];
-    
-    self.continueSkipContainer.continueEnabled = YES;
-    [self.continueSkipContainer updateContinueAndSkipEnabled];
 }
 
 @end
@@ -119,52 +102,92 @@ static NSString *localizedLearnMoreForType(ORKConsentSectionType sectionType) {
 }
 
 
-@implementation ORKConsentSceneViewController
+@implementation ORKConsentSceneViewController {
+    ORKNavigationContainerView *_navigationFooterView;
+    NSArray<NSLayoutConstraint *> *_constraints;
+    
+}
 
 - (instancetype)initWithSection:(ORKConsentSection *)section {
     self = [super init];
     if (self) {
         _section = section;
+        self.title = section.title;
         self.learnMoreButtonTitle = _section.customLearnMoreButtonTitle;
     }
     return self;
 }
 
-- (void)loadView {
-    _sceneView = [ORKConsentSceneView new];
-    self.view = _sceneView;
-}
-
 - (void)viewDidLoad {
     [super viewDidLoad];
-    
+    _sceneView = [ORKConsentSceneView new];
     _sceneView.consentSection = _section;
-    _sceneView.continueSkipContainer.continueButtonItem = _continueButtonItem;
-    _sceneView.imageView.hidden = _imageHidden;
+    _sceneView.stepTitle = _section.title;
+    [self.view addSubview:_sceneView];
     
     if (_section.content.length||_section.htmlContent.length || _section.contentURL) {
-        _sceneView.headerView.learnMoreButtonItem = [[UIBarButtonItem alloc] initWithTitle:_learnMoreButtonTitle ? : localizedLearnMoreForType(_section.type) style:UIBarButtonItemStylePlain target:self action:@selector(showContent:)];
+        ORK_Log_Info("%@", localizedLearnMoreForType(_section.type));
     }
+    [self setupNavigationFooterView];
+    [self setupConstraints];
 }
 
-- (void)setImageHidden:(BOOL)imageHidden {
-    _imageHidden = imageHidden;
-    _sceneView.imageView.hidden = imageHidden;
+- (void)setupNavigationFooterView {
+    if (!_navigationFooterView) {
+        _navigationFooterView = _sceneView.navigationFooterView ;
+    }
+    _navigationFooterView.continueButtonItem = _continueButtonItem;
+    _navigationFooterView.continueEnabled = YES;
+    [_navigationFooterView updateContinueAndSkipEnabled];
+}
+
+- (void)setupConstraints {
+    if (_constraints) {
+        [NSLayoutConstraint deactivateConstraints:_constraints];
+    }
+    _constraints = nil;
+    _sceneView.translatesAutoresizingMaskIntoConstraints = NO;
+    
+    _constraints = @[
+                     [NSLayoutConstraint constraintWithItem:_sceneView
+                                                  attribute:NSLayoutAttributeTop
+                                                  relatedBy:NSLayoutRelationEqual
+                                                     toItem:self.view
+                                                  attribute:NSLayoutAttributeTop
+                                                 multiplier:1.0
+                                                   constant:0.0],
+                     [NSLayoutConstraint constraintWithItem:_sceneView
+                                                  attribute:NSLayoutAttributeLeft
+                                                  relatedBy:NSLayoutRelationEqual
+                                                     toItem:self.view
+                                                  attribute:NSLayoutAttributeLeft
+                                                 multiplier:1.0
+                                                   constant:0.0],
+                     [NSLayoutConstraint constraintWithItem:_sceneView
+                                                  attribute:NSLayoutAttributeRight
+                                                  relatedBy:NSLayoutRelationEqual
+                                                     toItem:self.view
+                                                  attribute:NSLayoutAttributeRight
+                                                 multiplier:1.0
+                                                   constant:0.0],
+                     [NSLayoutConstraint constraintWithItem:_sceneView
+                                                  attribute:NSLayoutAttributeBottom
+                                                  relatedBy:NSLayoutRelationEqual
+                                                     toItem:self.view
+                                                  attribute:NSLayoutAttributeBottom
+                                                 multiplier:1.0
+                                                   constant:0.0]
+                     ];
+    [NSLayoutConstraint activateConstraints:_constraints];
 }
 
 - (void)setContinueButtonItem:(UIBarButtonItem *)continueButtonItem {
     _continueButtonItem = continueButtonItem;
-    _sceneView.continueSkipContainer.continueButtonItem = continueButtonItem;
+    _navigationFooterView.continueButtonItem = continueButtonItem;
 }
 
-- (void)setLearnMoreButtonTitle:(NSString *)learnMoreButtonTitle {
-    _learnMoreButtonTitle = learnMoreButtonTitle;
-    
-    UIBarButtonItem *item = _sceneView.headerView.learnMoreButtonItem;
-    if (item) {
-        item.title = _learnMoreButtonTitle ? : localizedLearnMoreForType(_section.type);
-        _sceneView.headerView.learnMoreButtonItem = item;
-    }
+- (void)setCancelButtonItem:(UIBarButtonItem *)cancelButtonItem {
+    _cancelButtonItem = cancelButtonItem;
 }
 
 - (UIScrollView *)scrollView {

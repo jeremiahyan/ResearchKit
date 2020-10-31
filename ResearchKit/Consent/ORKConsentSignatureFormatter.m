@@ -31,8 +31,11 @@
 
 
 #import "ORKConsentSignatureFormatter.h"
-#import "ORKDefines_Private.h"
-#import "ORKHelpers.h"
+
+#import "ORKConsentSignature.h"
+
+#import "ORKHelpers_Internal.h"
+
 
 @implementation ORKConsentSignatureFormatter
 
@@ -42,6 +45,7 @@
     NSString *hr = @"<hr align='left' width='100%' style='height:1px; border:none; color:#000; background-color:#000; margin-top: -10px; margin-bottom: 0px;' />";
 
     NSString *signatureElementWrapper = @"<p><br/><div class='sigbox'><div class='inbox'>%@</div></div>%@%@</p>";
+    NSString *signatureImageWrapper = @"<p><br/><div class='sigbox'><div class='inboxImage'>%@</div></div>%@%@</p>";
 
     BOOL addedSig = NO;
 
@@ -52,6 +56,21 @@
     }
 
     // Signature
+    
+    if (signature.requiresSignatureImage || signature.signatureImage) {
+        addedSig = YES;
+        NSString *imageTag = nil;
+
+        if (signature.signatureImage) {
+            NSString *base64 = [UIImagePNGRepresentation(signature.signatureImage) base64EncodedStringWithOptions:NSDataBase64Encoding64CharacterLineLength];
+            imageTag = [NSString stringWithFormat:@"<img width='100%%' alt='star' src='data:image/png;base64,%@' />", base64];
+        } else {
+            [body appendString:@"<br/>"];
+        }
+        
+        [signatureElements addObject:[NSString stringWithFormat:signatureImageWrapper, imageTag ? : @"&nbsp;", hr, ORKLocalizedString(@"CONSENT_DOC_LINE_SIGNATURE", nil)]];
+    }
+    
     if (signature.requiresName || signature.familyName || signature.givenName) {
         addedSig = YES;
         NSString *nameStr = @"&nbsp;";
@@ -68,27 +87,12 @@
             }
             nameStr = [names componentsJoinedByString:@"&nbsp;"];
         }
-
-        NSString *titleFormat = ORKLocalizedString(@"CONSENT_DOC_LINE_PRINTED_NAME", nil);
-        [signatureElements addObject:[NSString stringWithFormat:signatureElementWrapper, nameStr, hr, [NSString stringWithFormat:titleFormat,signature.title]]];
-    }
-
-    if (signature.requiresSignatureImage || signature.signatureImage) {
-        addedSig = YES;
-        NSString *imageTag = nil;
-
-        if (signature.signatureImage) {
-            NSString *base64 = [UIImagePNGRepresentation(signature.signatureImage) base64EncodedStringWithOptions:NSDataBase64Encoding64CharacterLineLength];
-            imageTag = [NSString stringWithFormat:@"<img width='100%%' alt='star' src='data:image/png;base64,%@' />", base64];
-        } else {
-            [body appendString:@"<br/>"];
-        }
-        NSString *titleFormat = ORKLocalizedString(@"CONSENT_DOC_LINE_SIGNATURE", nil);
-        [signatureElements addObject:[NSString stringWithFormat:signatureElementWrapper, imageTag?:@"&nbsp;", hr, [NSString stringWithFormat:titleFormat, signature.title]]];
+        
+        [signatureElements addObject:[NSString stringWithFormat:signatureElementWrapper, nameStr, hr, ORKLocalizedString(@"CONSENT_DOC_LINE_PRINTED_NAME", nil)]];
     }
 
     if (addedSig) {
-        [signatureElements addObject:[NSString stringWithFormat:signatureElementWrapper, signature.signatureDate?:@"&nbsp;", hr, ORKLocalizedString(@"CONSENT_DOC_LINE_DATE", nil)]];
+        [signatureElements addObject:[NSString stringWithFormat:signatureElementWrapper, signature.signatureDate ? : @"&nbsp;", hr, ORKLocalizedString(@"CONSENT_DOC_LINE_DATE", nil)]];
     }
 
     NSInteger numElements = signatureElements.count;

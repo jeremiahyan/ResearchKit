@@ -30,10 +30,18 @@
 
 
 #import "ORKSubheadlineLabel.h"
+
 #import "ORKSkin.h"
 
 
 @implementation ORKSubheadlineLabel
+
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection
+{
+    [super traitCollectionDidChange:previousTraitCollection];
+    
+    self.font = [ORKSubheadlineLabel defaultFont];
+}
 
 + (UIFont *)defaultFont {
     UIFontDescriptor *descriptor = [UIFontDescriptor preferredFontDescriptorWithTextStyle:UIFontTextStyleSubheadline];

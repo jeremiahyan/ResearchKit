@@ -29,19 +29,23 @@
  */
 
 
-#import "ORKStepViewController.h"
+#import <ResearchKit/ORKStepViewController.h>
 
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface ORKStepViewController () <UIViewControllerRestoration>
+@class ORKNavigationContainerView;
+
+@interface ORKStepViewController () <UIViewControllerRestoration> {
+    @protected ORKNavigationContainerView *_navigationFooterView;
+}
 
 - (void)stepDidChange;
 
 @property (nonatomic, copy, nullable) NSURL *outputDirectory;
+@property (nonatomic, copy, readonly, nullable) NSArray <ORKResult *> *addedResults;
 
 @property (nonatomic, strong, nullable) UIBarButtonItem *internalContinueButtonItem;
-@property (nonatomic, strong, nullable) UIBarButtonItem *internalBackButtonItem;
 @property (nonatomic, strong, nullable) UIBarButtonItem *internalDoneButtonItem;
 
 @property (nonatomic, strong, nullable) UIBarButtonItem *internalSkipButtonItem;
@@ -54,27 +58,41 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, nullable) NSDate *dismissedDate;
 
 @property (nonatomic, copy, nullable) NSString *restoredStepIdentifier;
+@property (nonatomic, assign) BOOL shouldIgnoreiPadDesign;
+@property (nonatomic) BOOL shouldPresentInReview;
+
++ (UIInterfaceOrientationMask)supportedInterfaceOrientations;
+
+// this property is set to `YES` when the step is part of a standalone review step. If set to `YES it will prevent any user input that might change the step result.
+@property (nonatomic, readonly) BOOL readOnlyMode;
+
+@property (nonatomic, readonly) BOOL isBeingReviewed;
+
+@property (nonatomic, nullable) ORKReviewStep* parentReviewStep;
 
 - (void)willNavigateDirection:(ORKStepViewControllerNavigationDirection)direction;
 
 - (void)notifyDelegateOnResultChange;
 
-- (instancetype)initWithStep:(ORKStep *)step result:(ORKResult *)result;
+- (instancetype)initWithNibName:(nullable NSString *)nibNameOrNil bundle:(nullable NSBundle *)nibBundleOrNil NS_UNAVAILABLE;
 
-- (instancetype)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil NS_DESIGNATED_INITIALIZER;
+- (BOOL)showValidityAlertWithMessage:(NSString *)text;
 
-- (void)showValidityAlertWithMessage:(NSString *)text;
-
-- (void)skipForward;
+- (BOOL)showValidityAlertWithTitle:(NSString *)title message:(NSString *)message;
 
 - (void)initializeInternalButtonItems;
 
-// internal use version to set backButton, without override "_internalBackButtonItem"
-- (void)ork_setBackButtonItem:(nullable UIBarButtonItem *)backButton;
+// internal method for updating the bar button items.
+- (void)updateBarButtonItems;
 
-// internal method for updating the right bar button item.
-- (void)updateNavRightBarButtonItem;
-- (void)updateNavLeftBarButtonItem;
+// Use this view to layout iPad Constraints.
+- (UIView *)viewForiPadLayoutConstraints;
+
+// internal method for updating title label for iPad designs.
+- (void)setiPadStepTitleLabelText:(NSString *)text;
+
+// internal method for updating iPadBackgroundViewColor.
+- (void)setiPadBackgroundViewColor:(UIColor *)color;
 
 @end
 

@@ -1,7 +1,8 @@
 /*
  Copyright (c) 2015, Apple Inc. All rights reserved.
  Copyright (c) 2015, Alex Basson. All rights reserved.
-
+ Copyright (c) 2017, Medable Inc. All rights reserved.
+ 
  Redistribution and use in source and binary forms, with or without modification,
  are permitted provided that the following conditions are met:
  
@@ -31,16 +32,19 @@
 
 
 #import "ORKConsentDocument_Internal.h"
-#import "ORKConsentSection_Internal.h"
-#import "ORKConsentSignature.h"
-#import "ORKHTMLPDFWriter.h"
-#import "ORKErrors.h"
-#import "ORKHelpers.h"
+
+#import "ORKBodyLabel.h"
 #import "ORKHeadlineLabel.h"
 #import "ORKSubheadlineLabel.h"
-#import "ORKBodyLabel.h"
+
+#import "ORKConsentSection_Private.h"
 #import "ORKConsentSectionFormatter.h"
+#import "ORKConsentSignature.h"
 #import "ORKConsentSignatureFormatter.h"
+#import "ORKHTMLPDFWriter.h"
+
+#import "ORKHelpers_Internal.h"
+#import "ORKErrors.h"
 
 
 @implementation ORKConsentDocument {
@@ -86,7 +90,8 @@
 }
 
 - (void)makePDFWithCompletionHandler:(void (^)(NSData *data, NSError *error))completionBlock {
-    return [_writer writePDFFromHTML:[self htmlForMobile:NO withTitle:nil detail:nil] withCompletionBlock:^(NSData *data, NSError *error) {
+    [_writer writePDFFromHTML:[self htmlForMobile:NO title:nil detail:nil]
+          completionBlock:^(NSData *data, NSError *error) {
         if (error) {
             // Pass the webview error straight through. This is a pretty exceptional
             // condition (can only happen if they pass us really invalid content).
@@ -97,10 +102,25 @@
     }];
 }
 
+- (void)makeCustomPDFWithRenderer:(ORKHTMLPDFPageRenderer *)renderer completionHandler:(void (^)(NSData * _Nullable, NSError * _Nullable))completionBlock {
+    _writer.printRenderer = renderer;
+    return [_writer writePDFFromHTML:[self htmlForMobile:NO title:nil detail:nil] completionBlock:^(NSData *data, NSError *error) {
+        if (error) {
+            // Pass the webview error straight through. This is a pretty exceptional
+            // condition (can only happen if they pass us really invalid content).
+            completionBlock(nil, error);
+        } else {
+            completionBlock(data, nil);
+        }
+        _writer.printRenderer = nil;
+    }];
+
+}
+
 #pragma mark - Private
 
 - (NSString *)mobileHTMLWithTitle:(NSString *)title detail:(NSString *)detail {
-    return [self htmlForMobile:YES withTitle:title detail:detail];
+    return [self htmlForMobile:YES title:title detail:detail];
 }
 
 + (NSString *)cssStyleSheet:(BOOL)mobile {
@@ -111,12 +131,12 @@
         
         
         CGFloat adjustment = [[ORKSubheadlineLabel defaultFont] pointSize] - 17.0;
-        NSArray *hPointSizes = @[@([[ORKHeadlineLabel defaultFont] pointSize]),
+        NSArray *hPointSizes = @[ @([[ORKHeadlineLabel defaultFont] pointSize]),
                                  @(24.0 + adjustment),
                                  @(19.0 + adjustment),
                                  @(17.0 + adjustment),
                                  @(13.0 + adjustment),
-                                 @(11.0 + adjustment)];
+                                 @(11.0 + adjustment) ];
         
         [css appendString:[NSString stringWithFormat:@"h1 { font-family: -apple-system-font ; font-weight: 300; font-size: %.0lf; }\n",
                            ((NSNumber *)hPointSizes[0]).floatValue]];
@@ -140,9 +160,10 @@
         [css appendString:@"body, p, h1, h2, h3 { font-family: Helvetica; }\n"];
     }
     
-    [css appendFormat:@".col-1-3 { width: %@; float: left; padding-right: 20px; }\n", mobile ? @"66.6%" : @"33.3%"];
+    [css appendFormat:@".col-1-3 { width: %@; float: left; padding-right: 20px; margin-top: 100px;}\n", mobile ? @"66.6%" : @"33.3%"];
     [css appendString:@".sigbox { position: relative; height: 100px; max-height:100px; display: inline-block; bottom: 10px }\n"];
-    [css appendString:@".inbox { position: relative; top: 100%%; transform: translateY(-100%%); -webkit-transform: translateY(-100%%);  }\n"];
+    [css appendString:@".inbox { position: absolute; bottom:10px; top: 100%%; transform: translateY(-100%%); -webkit-transform: translateY(-100%%);  }\n"];
+    [css appendString:@".inboxImage { position: relative; bottom:60px; top: 100%%; transform: translateY(-100%%); -webkit-transform: translateY(-100%%);  }\n"];
     [css appendString:@".grid:after { content: \"\"; display: table; clear: both; }\n"];
     [css appendString:@".border { -webkit-box-sizing: border-box; box-sizing: border-box; }\n"];
     
@@ -152,7 +173,7 @@
 + (NSString *)wrapHTMLBody:(NSString *)body mobile:(BOOL)mobile {
     NSMutableString *html = [NSMutableString string];
     
-    [html appendString:@"<html><head><style>"];
+    [html appendString:@"<html><head><meta name='viewport' content='width=device-width, initial-scale=1.0'><style>"];
     [html appendString:[[self class] cssStyleSheet:mobile]];
     [html appendString:@"</style></head><body>"];
     [html appendString:body];
@@ -161,7 +182,7 @@
     return [html copy];
 }
 
-- (NSString *)htmlForMobile:(BOOL)mobile withTitle:(NSString *)title detail:(NSString *)detail {
+- (NSString *)htmlForMobile:(BOOL)mobile title:(NSString *)title detail:(NSString *)detail {
     NSMutableString *body = [NSMutableString new];
     
     // header
@@ -180,7 +201,7 @@
     } else {
         
         // title
-        [body appendFormat:@"<h3>%@</h3>", _title?:@""];
+        [body appendFormat:@"<h3>%@</h3>", _title ? : @""];
         
         // scenes
         for (ORKConsentSection *section in _sections) {
@@ -188,17 +209,18 @@
                 [body appendFormat:@"%@", [_sectionFormatter HTMLForSection:section]];
             }
         }
+    }
+    
+    if (!mobile) {
+        // page break
+        [body appendFormat:@"<h4 class=\"pagebreak\">%@</h4>", _signaturePageTitle ? : @""];
+        [body appendFormat:@"<p>%@</p>", _signaturePageContent ? : @""];
         
-        if (!mobile) {
-            // page break
-            [body appendFormat:@"<h4 class=\"pagebreak\">%@</h4>", _signaturePageTitle?:@""];
-            [body appendFormat:@"<p>%@</p>", _signaturePageContent?:@""];
-            
-            for (ORKConsentSignature *signature in self.signatures) {
-                [body appendFormat:@"%@", [_signatureFormatter HTMLForSignature:signature]];
-            }
+        for (ORKConsentSignature *signature in self.signatures) {
+            [body appendFormat:@"%@", [_signatureFormatter HTMLForSignature:signature]];
         }
     }
+    
     return [[self class] wrapHTMLBody:body mobile:mobile];
 }
 
@@ -266,7 +288,7 @@
 }
 
 - (NSUInteger)hash {
-    return [_title hash] ^ [_sections hash];
+    return _title.hash ^ _sections.hash;
 }
 
 @end

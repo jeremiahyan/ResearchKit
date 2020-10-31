@@ -42,20 +42,28 @@ class ResultViewController: UITableViewController {
     // MARK: Types
     
     enum SegueIdentifier: String {
-        case ShowTaskResult = "ShowTaskResult"
+        case showTaskResult = "ShowTaskResult"
     }
     
     // MARK: Properties
 
-    var result: ORKResult?
+    var result: ORKResult? = ORKTaskResult()
 
-    var currentResult: ORKResult?
+    var currentResult: ORKResult? = ORKTaskResult()
 
-    var resultTableViewProvider: protocol<UITableViewDataSource, UITableViewDelegate>?
+    var resultTableViewProvider: UITableViewDataSource & UITableViewDelegate = resultTableViewProviderForResult(ORKTaskResult())
     
     // MARK: View Life Cycle
     
-    override func viewWillAppear(animated: Bool) {
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        
+        if #available(iOS 13.0, *) {
+            self.tableView.backgroundColor = UIColor.systemGroupedBackground
+        }
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         
         /*
@@ -63,7 +71,7 @@ class ResultViewController: UITableViewController {
             displayed result, and the result that has been most recently set on
             the `ResultViewController`.
         */
-        guard result != currentResult || currentResult == nil else { return }
+//        guard result != currentResult || currentResult == nil else { return }
         
         // Update the currently displayed result.
         currentResult = result
@@ -82,35 +90,34 @@ class ResultViewController: UITableViewController {
     
     // MARK: UIStoryboardSegue Handling
     
-    override func prepareForSegue(segue: UIStoryboardSegue, sender: AnyObject?) {
+    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
         /*
             Check to see if the segue identifier is meant for presenting a new
             result view controller.
         */
         if let identifier = segue.identifier,
-               segueIdentifier = SegueIdentifier(rawValue: identifier)
-               where segueIdentifier == .ShowTaskResult {
+               let segueIdentifier = SegueIdentifier(rawValue: identifier), segueIdentifier == .showTaskResult {
             
             let cell = sender as! UITableViewCell
             
-            let indexPath = tableView.indexPathForCell(cell)!
+            let indexPath = tableView.indexPath(for: cell)!
             
-            let destinationViewController = segue.destinationViewController as! ResultViewController
+            let destinationViewController = segue.destination as! ResultViewController
             
             let collectionResult = result as! ORKCollectionResult
             
-            destinationViewController.result = collectionResult.results![indexPath.row]
+            destinationViewController.result = collectionResult.results![(indexPath as NSIndexPath).row]
         }
     }
 
-    override func shouldPerformSegueWithIdentifier(segueIdentifier: String?, sender: AnyObject?) -> Bool {
+    override func shouldPerformSegue(withIdentifier segueIdentifier: String?, sender: Any?) -> Bool {
         /*
             Only perform a segue if the cell that was tapped has a disclosure
             indicator. These are the only kinds of cells that we allow to perform
             segues in a `ResultViewController`.
         */
         if let cell = sender as? UITableViewCell {
-            return cell.accessoryType == .DisclosureIndicator
+            return cell.accessoryType == .disclosureIndicator
         }
         
         return false

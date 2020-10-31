@@ -29,13 +29,19 @@
  */
 
 
-#import <Foundation/Foundation.h>
-#import <ResearchKit/ORKDefines.h>
+@import Foundation;
+@import UIKit;
+@import HealthKit;
+#import <ResearchKit/ORKTypes.h>
 
 
 NS_ASSUME_NONNULL_BEGIN
 
 ORK_EXTERN NSString *const ORKNullStepIdentifier ORK_AVAILABLE_DECL;
+
+@class ORKStepViewController;
+@class ORKResult;
+@class ORKBodyItem;
 
 @protocol ORKTask;
 
@@ -57,9 +63,13 @@ ORK_EXTERN NSString *const ORKNullStepIdentifier ORK_AVAILABLE_DECL;
  you should consider subclassing `ORKActiveStep` and `ORKActiveStepViewController`
  instead.
  */
+
+
 ORK_CLASS_AVAILABLE
+
 @interface ORKStep : NSObject <NSSecureCoding, NSCopying>
 
++ (instancetype)new NS_UNAVAILABLE;
 - (instancetype)init NS_UNAVAILABLE;
 
 /**
@@ -81,6 +91,15 @@ ORK_CLASS_AVAILABLE
  @return A new step.
  */
 - (instancetype)initWithCoder:(NSCoder *)aDecoder NS_DESIGNATED_INITIALIZER;
+
+/**
+ Returns a copy of this step initialized with the specified identifier.
+ 
+ @param identifier   The unique identifier for the new step to be returned.
+ 
+ @return A new step.
+ */
+- (instancetype)copyWithIdentifier:(NSString *)identifier;
 
 /**
  A short string that uniquely identifies the step within the task.
@@ -132,7 +151,89 @@ ORK_CLASS_AVAILABLE
  long question, it can work well to keep the title short and put the additional content in
  the `text` property.
  */
+
 @property (nonatomic, copy, nullable) NSString *text;
+
+/**
+ Additional detailed explanation for the instruction.
+ 
+ The detail text is displayed below the content of the `text` property.
+ */
+@property (nonatomic, copy, nullable) NSString *detailText;
+
+/**
+ An 'NSTextAlignment' that controls the text alignment for step title, text and detailText.
+ */
+@property (nonatomic) NSTextAlignment headerTextAlignment;
+
+/**
+ Array of `ORKBodyItem` type items to display textual info.
+ */
+@property (nonatomic, nullable) NSArray<ORKBodyItem *> *bodyItems;
+
+/**
+ An 'NSTextAlignment' that controls the text alignment for text bodyItems.
+ */
+@property (nonatomic) NSTextAlignment bodyItemTextAlignment;
+
+/**
+ A `Boolen` value indicating if the body items of the step should build in.
+ 
+ Default value is NO resulting in all body items being displayed. Set to YES to
+ only show the first item and subsequent items will build in on continue.
+ */
+@property (nonatomic, assign) BOOL buildInBodyItems;
+
+/**
+ Additional text to display for the step in a localized string at the bottom of the view.
+ 
+ The footnote is displayed in a smaller font below the continue button. It is intended to be used
+ in order to include disclaimer, copyright, etc. that is important to display in the step but
+ should not distract from the main purpose of the step.
+ */
+
+@property (nonatomic, copy, nullable) NSString *footnote;
+
+/**
+ An image that provides visual context for the instruction.
+ 
+ The image is displayed with aspect fit. Depending on the device, the screen area
+ available for this image can vary.
+ */
+@property (nonatomic, copy, nullable) UIImage *image;
+
+/**
+ A `UIViewContentMode` used to position image inside a `UIImageView` used by the step.
+ 
+ Depending on the subclass of the step, the `ORKStepView` uses specific 'UIImageView', and the
+ imageContentMode property sets the content mode of used image view.
+ */
+@property (nonatomic) UIViewContentMode imageContentMode;
+
+/**
+ An image that provides visual context for the instruction that will allow for showing
+ a two-part composite image where the `image` is tinted and the `auxiliaryImage` is
+ shown with light grey.
+ 
+ The image is displayed with the same frame as the `image` so both the `auxiliaryImage`
+ and `image` should have transparently to allow for overlay.
+ */
+@property (nonatomic, copy, nullable) UIImage *auxiliaryImage;
+
+/**
+ Optional icon image to show above the title and text.
+ */
+@property (nonatomic, copy, nullable) UIImage *iconImage;
+
+/**
+Whether to show progress for this step when it is presented. The default is YES.
+ */
+@property (nonatomic, assign) BOOL showsProgress;
+
+/**
+ Whether to use extended outer padding for views
+ */
+@property (nonatomic, assign) BOOL useExtendedPadding;
 
 /**
  The task that contains the step.
@@ -158,6 +259,18 @@ ORK_CLASS_AVAILABLE
 @property (nonatomic, readonly) ORKPermissionMask requestedPermissions;
 
 /**
+ The set of HealthKit types the step requests for reading. (read-only)
+ 
+ The task view controller uses this set of types when constructing a list of
+ all the HealthKit types required by all the steps in a task, so that it can
+ present the HealthKit access dialog just once during that task.
+ 
+ By default, the property scans the recorders and collates the HealthKit
+ types the recorders require. Subclasses may override this implementation.
+ */
+@property (nonatomic, readonly, nullable) NSSet<HKObjectType *> *requestedHealthKitTypesForReading;
+
+/**
  Checks the parameters of the step and throws exceptions on invalid parameters.
  
  This method is called when there is a need to validate the step's parameters, which is typically
@@ -168,6 +281,29 @@ ORK_CLASS_AVAILABLE
  properties, and must call super.
  */
 - (void)validateParameters;
+
+/**
+ Returns the class that the task view controller should instantiate to display
+ this step.
+ */
+- (Class)stepViewControllerClass;
+
+/**
+ Instantiates a step view controller for this class.
+ 
+ This method is called when a step is about to be presented. The default implementation returns
+ a view controller that is appropriate to this step by allocating an instance of `ORKStepViewController`
+ using the `-stepViewControllerClass` method and initializing that instance by calling `initWithIdentifier:result:`
+ on the provided `ORKStepViewController` class instance.
+ 
+ Override this method if you need to customize the behavior before presenting the step or if 
+ the view controller is presented using a nib or storyboard.
+ 
+ @param result    The result associated with this step
+ 
+ @return A newly initialized step view controller.
+ */
+- (ORKStepViewController *)instantiateStepViewControllerWithResult:(ORKResult *)result;
 
 @end
 
